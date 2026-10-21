@@ -1,10 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { isGoIdUrl } from '@/lib/validation';
-import { StatusBadge } from '@/components/StatusBadge';
 import {
   BackLink,
   Eyebrow,
@@ -12,16 +10,6 @@ import {
   StepProgress,
   VisualPanel,
 } from '@/components/lapor-ui';
-
-interface PublicReportSummary {
-  id: string;
-  siteUrl: string;
-  deskripsi: string;
-  status: string;
-  prUrl: string | null;
-  sessionId: string | null;
-  createdAt: string;
-}
 
 const TOTAL_STEPS = 4;
 const DESC_MAX = 500;
@@ -102,22 +90,11 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
-  const [recentReports, setRecentReports] = useState<PublicReportSummary[]>([]);
-
   const showNonGoIdWarning =
     siteUrl.trim().length > 8 &&
     isValidUrl(siteUrl) &&
     !isGoIdUrl(siteUrl.trim());
   const siteUrlInvalid = siteUrl.trim().length > 0 && !isValidUrl(siteUrl);
-
-  useEffect(() => {
-    fetch('/api/reports?public=1')
-      .then((r) => r.json())
-      .then((d) => {
-        if (Array.isArray(d.reports)) setRecentReports(d.reports);
-      })
-      .catch(() => {});
-  }, []);
 
   function handleScreenshotChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -153,7 +130,7 @@ export default function HomePage() {
   function handleNext() {
     setErrorMsg(null);
     if (!canNext()) {
-      if (step === 1) setErrorMsg('Pilih salah satu jenis masalah terlebih dahulu.');
+      if (step === 1) setErrorMsg('Pilih salah satu judul laporan terlebih dahulu.');
       if (step === 2)
         setErrorMsg(
           siteUrl.trim()
@@ -172,7 +149,7 @@ export default function HomePage() {
     setErrorMsg(null);
     setFieldErrors({});
     try {
-      const finalDeskripsi = `[Kategori: ${kategori}]\n\n${deskripsi.trim()}`;
+      const finalDeskripsi = `[Judul: ${kategori}]\n\n${deskripsi.trim()}`;
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,14 +187,15 @@ export default function HomePage() {
             <div className="mt-6 flex-1">
               {step === 1 && (
                 <>
-                  <h1 className="text-[28px] sm:text-[32px] leading-[1.15] font-extrabold tracking-tight text-ink">
-                    Apa yang ingin
+                  <Eyebrow>Langkah 1 — Pilih Judul Laporan</Eyebrow>
+                  <h1 className="text-[28px] sm:text-[32px] leading-[1.15] font-extrabold tracking-tight text-ink mt-1.5">
+                    Pilih judul laporan
                     <br />
-                    Anda <span className="text-brand-600">laporkan?</span>
+                    yang paling <span className="text-brand-600">sesuai.</span>
                   </h1>
                   <p className="text-[13px] text-ink-soft mt-2 max-w-sm">
-                    Pilih jenis masalah yang Anda alami saat mengakses website
-                    resmi pemerintah.
+                    Pilih salah satu judul kendala di bawah ini untuk mempermudah
+                    pelaporan tanpa perlu mengetik judul manual.
                   </p>
 
                   <div className="mt-6 space-y-2.5">
@@ -231,11 +209,10 @@ export default function HomePage() {
                             setKategori(c.value);
                             setErrorMsg(null);
                           }}
-                          className={`w-full text-left flex items-center gap-3 rounded-xl border px-4 py-3 transition ${
-                            active
+                          className={`w-full text-left flex items-center gap-3 rounded-xl border px-4 py-3 transition ${active
                               ? 'border-brand-600 bg-brand-50/60 shadow-sm'
                               : 'border-line bg-white hover:border-stone-300'
-                          }`}
+                            }`}
                         >
                           <span className={active ? 'text-brand-600' : 'text-ink'}>
                             {c.icon}
@@ -249,9 +226,8 @@ export default function HomePage() {
                             </span>
                           </span>
                           <span
-                            className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                              active ? 'border-brand-600' : 'border-stone-300'
-                            }`}
+                            className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${active ? 'border-brand-600' : 'border-stone-300'
+                              }`}
                           >
                             {active && (
                               <span className="w-2 h-2 rounded-full bg-brand-600" />
@@ -277,9 +253,8 @@ export default function HomePage() {
 
                   <div className="mt-6">
                     <div
-                      className={`flex items-center gap-2 rounded-xl border px-4 py-3 bg-white transition focus-within:ring-2 focus-within:ring-brand-600/15 ${
-                        siteUrlInvalid ? 'border-brand-600' : 'border-line focus-within:border-brand-600'
-                      }`}
+                      className={`flex items-center gap-2 rounded-xl border px-4 py-3 bg-white transition focus-within:ring-2 focus-within:ring-brand-600/15 ${siteUrlInvalid ? 'border-brand-600' : 'border-line focus-within:border-brand-600'
+                        }`}
                     >
                       <svg viewBox="0 0 24 24" className="w-4 h-4 text-ink-faint shrink-0" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
                         <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" strokeLinecap="round" />
@@ -330,6 +305,11 @@ export default function HomePage() {
                         Alamat belum valid — pastikan menyertakan awalan https://
                       </p>
                     )}
+                    {fieldErrors.siteUrl && (
+                      <p className="text-[11px] text-rose-700 font-semibold mt-2">
+                        {fieldErrors.siteUrl.join(', ')}
+                      </p>
+                    )}
                     {showNonGoIdWarning && (
                       <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800">
                         <strong>Peringatan:</strong> URL ini bukan domain{' '}
@@ -365,6 +345,13 @@ export default function HomePage() {
                       onChange={(e) => {
                         setDeskripsi(e.target.value);
                         setErrorMsg(null);
+                        if (fieldErrors.deskripsi) {
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.deskripsi;
+                            return next;
+                          });
+                        }
                       }}
                       placeholder="Contoh: Website tidak bisa diakses sejak pagi hari, muncul pesan &#8220;404 Not Found&#8221; saat dibuka melalui browser Chrome..."
                       autoFocus
@@ -379,7 +366,7 @@ export default function HomePage() {
                       </span>
                     </div>
                     {fieldErrors.deskripsi && (
-                      <p className="text-[11px] text-brand-700 mt-1">
+                      <p className="text-[11px] text-rose-700 font-semibold mt-1">
                         {fieldErrors.deskripsi[0]}
                       </p>
                     )}
@@ -409,22 +396,63 @@ export default function HomePage() {
                               Terpilih: {screenshotName}
                             </p>
                           )}
+                          {fieldErrors.screenshot && (
+                            <p className="text-[11px] text-rose-700 font-semibold mt-1">
+                              {fieldErrors.screenshot[0]}
+                            </p>
+                          )}
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <input
-                            type="text"
-                            value={namaPelapor}
-                            onChange={(e) => setNamaPelapor(e.target.value)}
-                            placeholder="Nama Anda (opsional)"
-                            className="rounded-lg border border-line bg-white px-3 py-2 text-[13px] focus:border-brand-600 focus:outline-none"
-                          />
-                          <input
-                            type="email"
-                            value={kontak}
-                            onChange={(e) => setKontak(e.target.value)}
-                            placeholder="Email (opsional)"
-                            className="rounded-lg border border-line bg-white px-3 py-2 text-[13px] focus:border-brand-600 focus:outline-none"
-                          />
+                          <div>
+                            <input
+                              type="text"
+                              value={namaPelapor}
+                              onChange={(e) => {
+                                setNamaPelapor(e.target.value);
+                                if (fieldErrors.namaPelapor) {
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next.namaPelapor;
+                                    return next;
+                                  });
+                                }
+                              }}
+                              placeholder="Nama Anda (opsional)"
+                              className="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] focus:border-brand-600 focus:outline-none"
+                            />
+                            {fieldErrors.namaPelapor && (
+                              <p className="text-[11px] text-rose-700 font-semibold mt-1">
+                                {fieldErrors.namaPelapor[0]}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <input
+                              type="email"
+                              value={kontak}
+                              onChange={(e) => {
+                                setKontak(e.target.value);
+                                setErrorMsg(null);
+                                if (fieldErrors.kontak) {
+                                  setFieldErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next.kontak;
+                                    return next;
+                                  });
+                                }
+                              }}
+                              placeholder="Email (opsional, cth: nama@email.com)"
+                              className={`w-full rounded-lg border bg-white px-3 py-2 text-[13px] focus:outline-none ${fieldErrors.kontak
+                                  ? 'border-rose-500 focus:border-rose-600'
+                                  : 'border-line focus:border-brand-600'
+                                }`}
+                            />
+                            {fieldErrors.kontak && (
+                              <p className="text-[11px] text-rose-700 font-semibold mt-1">
+                                {fieldErrors.kontak[0]}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -452,7 +480,7 @@ export default function HomePage() {
                         </svg>
                       </span>
                       <div className="min-w-0">
-                        <p className="text-[11px] text-ink-faint">Kategori masalah</p>
+                        <p className="text-[11px] text-ink-faint">Judul Laporan</p>
                         <p className="text-[13px] font-bold text-ink">{kategori}</p>
                       </div>
                     </div>
@@ -492,8 +520,103 @@ export default function HomePage() {
               )}
 
               {errorMsg && (
-                <div className="mt-4 rounded-xl bg-brand-50 border border-brand-200 px-4 py-3 text-[12px] font-medium text-brand-800">
-                  {errorMsg}
+                <div className="mt-5 rounded-2xl bg-rose-50 border border-rose-200 p-4 text-[12px] text-rose-900 shadow-sm animate-fadeIn">
+                  <div className="flex items-start gap-2.5">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-extrabold text-rose-900 text-[13px]">
+                        {errorMsg}
+                      </p>
+                      {Object.keys(fieldErrors).length > 0 ? (
+                        <div className="mt-3 space-y-2 border-t border-rose-200/80 pt-2.5">
+                          <p className="text-[11px] font-bold text-rose-800">
+                            Rincian isian yang belum valid:
+                          </p>
+                          <ul className="space-y-1.5 text-[11px]">
+                            {fieldErrors.siteUrl && (
+                              <li className="flex items-center justify-between gap-3 bg-white/80 rounded-xl p-2.5 border border-rose-200/60">
+                                <span>
+                                  <strong>🌐 Alamat Website (Langkah 2):</strong>{' '}
+                                  {fieldErrors.siteUrl.join(', ')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => { setStep(2); setErrorMsg(null); }}
+                                  className="text-brand-700 underline font-bold shrink-0 hover:text-brand-800 text-[11px]"
+                                >
+                                  Perbaiki →
+                                </button>
+                              </li>
+                            )}
+                            {fieldErrors.deskripsi && (
+                              <li className="flex items-center justify-between gap-3 bg-white/80 rounded-xl p-2.5 border border-rose-200/60">
+                                <span>
+                                  <strong>📝 Deskripsi Kendala (Langkah 3):</strong>{' '}
+                                  {fieldErrors.deskripsi.join(', ')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => { setStep(3); setErrorMsg(null); }}
+                                  className="text-brand-700 underline font-bold shrink-0 hover:text-brand-800 text-[11px]"
+                                >
+                                  Perbaiki →
+                                </button>
+                              </li>
+                            )}
+                            {fieldErrors.kontak && (
+                              <li className="flex items-center justify-between gap-3 bg-white/80 rounded-xl p-2.5 border border-rose-200/60">
+                                <span>
+                                  <strong>✉️ Kontak / Email (Langkah 3):</strong>{' '}
+                                  {fieldErrors.kontak.join(', ')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => { setStep(3); setShowExtra(true); setErrorMsg(null); }}
+                                  className="text-brand-700 underline font-bold shrink-0 hover:text-brand-800 text-[11px]"
+                                >
+                                  Perbaiki →
+                                </button>
+                              </li>
+                            )}
+                            {fieldErrors.screenshot && (
+                              <li className="flex items-center justify-between gap-3 bg-white/80 rounded-xl p-2.5 border border-rose-200/60">
+                                <span>
+                                  <strong>🖼️ Screenshot (Langkah 3):</strong>{' '}
+                                  {fieldErrors.screenshot.join(', ')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => { setStep(3); setShowExtra(true); setErrorMsg(null); }}
+                                  className="text-brand-700 underline font-bold shrink-0 hover:text-brand-800 text-[11px]"
+                                >
+                                  Perbaiki →
+                                </button>
+                              </li>
+                            )}
+                            {fieldErrors.namaPelapor && (
+                              <li className="flex items-center justify-between gap-3 bg-white/80 rounded-xl p-2.5 border border-rose-200/60">
+                                <span>
+                                  <strong>👤 Nama Pelapor (Langkah 3):</strong>{' '}
+                                  {fieldErrors.namaPelapor.join(', ')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => { setStep(3); setShowExtra(true); setErrorMsg(null); }}
+                                  className="text-brand-700 underline font-bold shrink-0 hover:text-brand-800 text-[11px]"
+                                >
+                                  Perbaiki →
+                                </button>
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -543,53 +666,6 @@ export default function HomePage() {
             <VisualPanel step={step} />
           </div>
         </div>
-      </div>
-
-      {/* Recent reports strip */}
-      <div className="bg-white rounded-3xl border border-line shadow-card p-6 sm:p-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-extrabold text-ink tracking-tight">
-            Laporan terbaru
-          </h2>
-          <Link href="/admin" className="text-[12px] font-semibold text-ink-faint hover:text-brand-700 underline underline-offset-2">
-            Semua di /admin →
-          </Link>
-        </div>
-        {recentReports.length === 0 ? (
-          <p className="text-[12px] text-ink-faint py-4 text-center">
-            Belum ada laporan yang tercatat.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {recentReports.slice(0, 4).map((rep) => (
-              <Link
-                key={rep.id}
-                href={`/lapor/${rep.id}`}
-                className="block rounded-2xl border border-line p-4 hover:border-brand-600/50 hover:shadow-card transition bg-cream/50"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <span className="font-mono text-[11px] text-ink-faint">
-                    #{rep.id.slice(0, 10)}
-                  </span>
-                  <StatusBadge status={rep.status} />
-                </div>
-                <p className="text-[13px] font-bold text-ink line-clamp-1">
-                  {rep.deskripsi.replace(/^\[Kategori:[^\]]+\]\s*/, '')}
-                </p>
-                <div className="flex items-center justify-between mt-1.5 text-[11px] text-ink-faint">
-                  <span className="truncate max-w-[200px]">{rep.siteUrl}</span>
-                  <span>
-                    {new Date(rep.createdAt).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

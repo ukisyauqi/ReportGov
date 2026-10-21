@@ -60,7 +60,8 @@ export const createReportSchema = z.object({
     .trim()
     .max(120, 'Email maksimal 120 karakter')
     .refine((val) => val.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
-      message: 'Format email tidak valid',
+      message:
+        'Format email tidak valid (contoh: nama@domain.com). Kosongkan jika tidak ingin mengisi email.',
     })
     .optional()
     .nullable(),

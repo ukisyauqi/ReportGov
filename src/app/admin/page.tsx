@@ -187,7 +187,7 @@ export default function AdminMonitoringPage() {
                       <StatusBadge status={rep.status} />
                     </div>
                     <p className="text-[13px] font-bold text-ink line-clamp-1">
-                      {rep.deskripsi.replace(/^\[Kategori:[^\]]+\]\s*/, '')}
+                      {rep.deskripsi.match(/^\[(?:Judul|Kategori):\s*([^\]]+)\]/i)?.[1] || rep.deskripsi}
                     </p>
                     <div className="flex items-center justify-between mt-1.5 text-[11px] text-ink-faint">
                       <span className="truncate max-w-[190px]">{rep.siteUrl}</span>
@@ -221,7 +221,7 @@ export default function AdminMonitoringPage() {
                     ID: {selectedReport.id}
                   </span>
                   <h2 className="text-lg font-extrabold tracking-tight text-ink mt-0.5 line-clamp-2">
-                    {selectedReport.deskripsi.replace(/^\[Kategori:[^\]]+\]\s*/, '')}
+                    {selectedReport.deskripsi.match(/^\[(?:Judul|Kategori):\s*([^\]]+)\]/i)?.[1] || selectedReport.deskripsi}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">

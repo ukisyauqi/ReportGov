@@ -53,9 +53,32 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Ekstrak judul dan kategori (kategori adalah pilihan judul)
+    const match = data.deskripsi.match(/^\[Judul:\s*([^\]]+)\]/i);
+    const judul = match
+      ? match[1].trim()
+      : typeof body.judul === 'string' && body.judul.trim()
+        ? body.judul.trim()
+        : 'Laporan Kendala Website';
+
+    const KATEGORI_MAP: Record<string, string> = {
+      'Website tidak bisa diakses': 'down',
+      'Website lambat': 'lambat',
+      'Konten tidak sesuai / tidak akurat': 'konten-salah',
+      'Masalah lainnya': 'lainnya',
+    };
+    const kategori =
+      KATEGORI_MAP[judul] ||
+      (typeof body.kategori === 'string' && body.kategori.trim()
+        ? body.kategori.trim()
+        : 'lainnya');
+
     const report = await prisma.report.create({
       data: {
         siteUrl: data.siteUrl,
+        kategori,
+        judul,
         deskripsi: data.deskripsi,
         screenshot: data.screenshot || null,
         namaPelapor: data.namaPelapor || null,
@@ -81,7 +104,10 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[POST /api/reports] Error:', err);
     return NextResponse.json(
-      { error: 'Terjadi kesalahan pada server saat menyimpan laporan' },
+      {
+        error: 'Terjadi kesalahan pada server saat menyimpan laporan',
+        detail: String((err as Error)?.message || err),
+      },
       { status: 500 }
     );
   }

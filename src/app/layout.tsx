@@ -43,12 +43,6 @@ export default function RootLayout({
                 >
                   Buat Laporan
                 </Link>
-                <Link
-                  href="/admin"
-                  className="px-4 py-1.5 rounded-full bg-ink text-white hover:bg-black transition text-[13px] font-semibold"
-                >
-                  Admin
-                </Link>
               </nav>
             </div>
           </div>

@@ -12,6 +12,8 @@ datasource db {
 model Report {
   id          String   @id @default(cuid())
   siteUrl     String
+  kategori    String   @default("lainnya")
+  judul       String   @default("Laporan Kendala Website")
   deskripsi   String
   screenshot  String?
   namaPelapor String?

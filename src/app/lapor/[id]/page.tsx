@@ -219,7 +219,13 @@ export default function LaporTrackingPage() {
         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-faint">
           Detail Laporan
         </p>
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
+            <span className="text-[11px] text-ink-faint block mb-0.5">Judul Laporan</span>
+            <span className="font-bold text-ink text-[13px]">
+              {report.deskripsi.match(/^\[(?:Judul|Kategori):\s*([^\]]+)\]/i)?.[1] || 'Laporan Masalah'}
+            </span>
+          </div>
           <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
             <span className="text-[11px] text-ink-faint block mb-0.5">URL Website</span>
             <a
@@ -239,7 +245,7 @@ export default function LaporTrackingPage() {
           </div>
         </div>
         <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] text-ink-soft bg-cream/70 rounded-2xl p-4 border border-line/70 leading-relaxed">
-          {report.deskripsi}
+          {report.deskripsi.replace(/^\[(?:Judul|Kategori):[^\]]+\]\s*/i, '')}
         </pre>
         {report.screenshot && (
           <div className="mt-3">
