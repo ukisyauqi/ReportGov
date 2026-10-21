@@ -6,7 +6,7 @@
       "*.env*": "deny"
     },
     "bash": {
-      "git push*": "deny",
+      "git push*": "allow",
       "rm -rf *": "deny",
       "sudo *": "deny",
       "npm *": "allow",
