@@ -3,18 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  KATEGORI_LABELS,
-  KATEGORI_LIST,
-  isGoIdUrl,
-} from '@/lib/validation';
+import { isGoIdUrl } from '@/lib/validation';
 import { StatusBadge } from '@/components/StatusBadge';
 
 interface PublicReportSummary {
   id: string;
   siteUrl: string;
-  kategori: string;
-  judul: string;
+  deskripsi: string;
   status: string;
   prUrl: string | null;
   sessionId: string | null;
@@ -31,9 +26,6 @@ export default function HomePage() {
   const router = useRouter();
 
   const [siteUrl, setSiteUrl] = useState('https://layanan.kominfo.go.id');
-  const [kategori, setKategori] =
-    useState<(typeof KATEGORI_LIST)[number]>('bug-tampilan');
-  const [judul, setJudul] = useState('');
   const [deskripsi, setDeskripsi] = useState('');
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [screenshotName, setScreenshotName] = useState('');
@@ -99,8 +91,6 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteUrl,
-          kategori,
-          judul,
           deskripsi,
           screenshot,
           namaPelapor: namaPelapor || undefined,
@@ -212,55 +202,6 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Kategori */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-800 mb-1">
-                Kategori Masalah <span className="text-red-600">*</span>
-              </label>
-              <select
-                value={kategori}
-                onChange={(e) =>
-                  setKategori(e.target.value as (typeof KATEGORI_LIST)[number])
-                }
-                className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-              >
-                {KATEGORI_LIST.map((kat) => (
-                  <option key={kat} value={kat}>
-                    {KATEGORI_LABELS[kat]} ({kat})
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.kategori && (
-                <p className="text-xs text-rose-600 mt-1">
-                  {fieldErrors.kategori[0]}
-                </p>
-              )}
-            </div>
-
-            {/* Judul */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-800 mb-1">
-                Judul Masalah <span className="text-red-600">*</span>{' '}
-                <span className="text-xs font-normal text-slate-500">
-                  (minimal 10 karakter)
-                </span>
-              </label>
-              <input
-                type="text"
-                required
-                minLength={10}
-                value={judul}
-                onChange={(e) => setJudul(e.target.value)}
-                placeholder="Contoh: Tombol Kirim Permohonan tidak bisa diklik pada layar HP"
-                className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-              />
-              {fieldErrors.judul && (
-                <p className="text-xs text-rose-600 mt-1">
-                  {fieldErrors.judul[0]}
-                </p>
-              )}
-            </div>
-
             {/* Deskripsi */}
             <div>
               <label className="block text-sm font-semibold text-slate-800 mb-1">
@@ -331,18 +272,23 @@ export default function HomePage() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-800 mb-1">
-                  Kontak Email / WA{' '}
+                  Email{' '}
                   <span className="text-xs font-normal text-slate-500">
                     (Opsional)
                   </span>
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   value={kontak}
                   onChange={(e) => setKontak(e.target.value)}
                   placeholder="warga@email.id"
                   className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm focus:border-slate-900 focus:outline-none"
                 />
+                {fieldErrors.kontak && (
+                  <p className="text-xs text-rose-600 mt-1">
+                    {fieldErrors.kontak[0]}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -458,12 +404,16 @@ export default function HomePage() {
                     <StatusBadge status={rep.status} />
                   </div>
                   <p className="text-sm font-semibold text-slate-900 line-clamp-1">
-                    {rep.judul}
+                    {rep.deskripsi}
                   </p>
                   <div className="flex items-center justify-between mt-1.5 text-xs text-slate-500">
                     <span className="truncate max-w-[200px]">{rep.siteUrl}</span>
-                    <span className="px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 text-[11px]">
-                      {rep.kategori}
+                    <span className="text-[11px]">
+                      {new Date(rep.createdAt).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
                     </span>
                   </div>
                 </Link>

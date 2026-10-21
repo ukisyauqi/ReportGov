@@ -9,8 +9,6 @@ async function main() {
     data: {
       id: 'seed-kominfo-mobile-nav',
       siteUrl: 'https://layanan.kominfo.go.id',
-      kategori: 'tidak-bisa-diakses-hp',
-      judul: 'Tombol Kirim Permohonan tertutup banner footer pada tampilan HP',
       deskripsi:
         '1. Reproduksi: Buka https://layanan.kominfo.go.id/permohonan di layar mobile (375x667).\n2. Ekspektasi: Tombol Kirim Permohonan dapat diklik dengan jelas.\n3. Aktual: Banner sticky footer menutupi area tombol submit sehingga form tidak bisa dikirim.',
       namaPelapor: 'Budi Santoso',
@@ -22,8 +20,6 @@ async function main() {
       prompt: `# Tugas Bugfix Otomatis — Website Pemerintah
 
 ## Informasi Laporan
-- **Judul Laporan**: Tombol Kirim Permohonan tertutup banner footer pada tampilan HP
-- **Kategori Masalah**: tidak-bisa-diakses-hp
 - **URL Website**: https://layanan.kominfo.go.id
 
 ## Deskripsi Masalah (Reproduksi & Ekspektasi vs Aktual)
@@ -52,8 +48,6 @@ $ npm run build -> OK
     data: {
       id: 'seed-dukcapil-broken-link',
       siteUrl: 'https://dukcapil.kemendagri.go.id',
-      kategori: 'link-rusak',
-      judul: 'Link Unduh Formulir F-1.01 mengarah ke halaman 404 Not Found',
       deskripsi:
         '1. Reproduksi: Buka halaman Unduhan Dokumen lalu klik tombol "Formulir F-1.01".\n2. Ekspektasi: File PDF terunduh.\n3. Aktual: Mengarah ke URL /files/f101-lama.pdf yang mengembalikan 404.',
       namaPelapor: 'Siti Aminah',
@@ -64,8 +58,6 @@ $ npm run build -> OK
       prompt: `# Tugas Bugfix Otomatis — Website Pemerintah
 
 ## Informasi Laporan
-- **Judul Laporan**: Link Unduh Formulir F-1.01 mengarah ke halaman 404 Not Found
-- **Kategori Masalah**: link-rusak
 - **URL Website**: https://dukcapil.kemendagri.go.id`,
       harnessLog: `[2026-10-21T08:10:00.000Z] Memulai pemrosesan otomatis laporan #seed-dukcapil-broken-link (https://dukcapil.kemendagri.go.id) - status=diproses-ai
 [2026-10-21T08:10:01.000Z] Repo tervalidasi: https://github.com/pemerintah-id/web-dukcapil-kemendagri.git

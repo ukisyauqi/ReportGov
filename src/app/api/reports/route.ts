@@ -56,8 +56,6 @@ export async function POST(req: NextRequest) {
     const report = await prisma.report.create({
       data: {
         siteUrl: data.siteUrl,
-        kategori: data.kategori,
-        judul: data.judul,
         deskripsi: data.deskripsi,
         screenshot: data.screenshot || null,
         namaPelapor: data.namaPelapor || null,
@@ -100,8 +98,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         siteUrl: true,
-        kategori: true,
-        judul: true,
+        deskripsi: true,
         status: true,
         prUrl: true,
         sessionId: true,
@@ -122,16 +119,14 @@ export async function GET(req: NextRequest) {
   }
 
   const statusFilter = searchParams.get('status') || '';
-  const kategoriFilter = searchParams.get('kategori') || '';
   const searchQuery = searchParams.get('q') || '';
 
   const where: Record<string, unknown> = {};
   if (statusFilter) where.status = statusFilter;
-  if (kategoriFilter) where.kategori = kategoriFilter;
   if (searchQuery) {
     where.OR = [
       { siteUrl: { contains: searchQuery } },
-      { judul: { contains: searchQuery } },
+      { deskripsi: { contains: searchQuery } },
       { id: { contains: searchQuery } },
     ];
   }

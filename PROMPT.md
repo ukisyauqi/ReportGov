@@ -64,12 +64,10 @@ Jika `getClient()` gagal konek di endpoint mana pun, balas HTTP `503 { error: "o
 model Report {
   id          String   @id @default(cuid())
   siteUrl     String
-  kategori    String   // down | bug-tampilan | link-rusak | konten-salah | lambat | tidak-bisa-diakses-hp | keamanan | lainnya
-  judul       String
   deskripsi   String   @db.Text
   screenshot  String?
   namaPelapor String?
-  kontak      String?
+  kontak      String?  // email saja (opsional)
   status      String   @default("baru") // baru | diproses-ai | pr-dibuat | selesai | ditolak
   prompt      String?  @db.Text
   harnessLog  String?  @db.Text
@@ -87,12 +85,12 @@ model Report {
 
 ### Halaman
 1. **`/` (Form Publik)**:
-   - Input: `siteUrl` (wajib http/https, beri warning jika bukan `*.go.id`), `kategori`, `judul` (min 10 karakter), `deskripsi` (min 20 karakter: langkah reproduksi + ekspektasi vs aktual), `screenshot` (opsional, image maks 5MB), `namaPelapor` & `kontak` (opsional).
+   - Input: `siteUrl` (wajib http/https, beri warning jika bukan `*.go.id`), `deskripsi` (min 20 karakter: langkah reproduksi + ekspektasi vs aktual), `screenshot` (opsional, image maks 5MB), `namaPelapor` & `kontak` email (opsional).
    - Submit -> arahkan ke `/lapor/[id]`.
 2. **`/lapor/[id]` (Tracking Publik)**:
    - Menampilkan `status`, detail laporan, `prompt` (read-only collapsible), `sessionId`, `harnessLog`, dan link `prUrl`.
 3. **`/admin` (Monitoring Read-Only)**:
-   - Tabel laporan (filter status/kategori, cari URL) & detail lengkap (`sessionId`, `prompt`, log iterasi, `prUrl`).
+   - Tabel laporan (filter status, cari URL/deskripsi/ID) & detail lengkap (`sessionId`, `prompt`, log iterasi, `prUrl`).
    - Diproteksi header `x-admin-key: ADMIN_KEY`. **Tanpa tombol trigger manual.**
 
 ### Endpoint API

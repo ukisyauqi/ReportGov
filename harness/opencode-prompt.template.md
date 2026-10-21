@@ -4,8 +4,6 @@ Kamu adalah engineer AI. Selesaikan SELURUH tugas ini sampai Pull Request terbua
 
 ## Laporan
 - **Report ID**: {{reportId}}
-- **Judul**: {{judul}}
-- **Kategori**: {{kategori}}
 - **URL Website**: {{siteUrl}}
 - **Branch yang dipakai**: {{branch}}
 
@@ -25,10 +23,10 @@ Kamu adalah engineer AI. Selesaikan SELURUH tugas ini sampai Pull Request terbua
 Jalankan persis berurutan:
 1. `git checkout -B {{branch}}`
 2. `git add` HANYA file yang kamu perbaiki (sebutkan satu per satu, pakai tanda kutip). JANGAN `git add -A` / `git add .`. JANGAN stage: `opencode.json`, `.serena/`, `.opencode/`, file `*.mjs` di root, `EVIDENCE.md`, `*.log`, `node_modules/`, `.next/`, `dist/`, `build/`, `coverage/`.
-3. `git commit -m "fix({{kategori}}): {{judul}} (report {{reportId}})"` — bila judul mengandung petik ganda, ganti jadi petik tunggal.
+3. `git commit -m "fix(report {{reportId}}): {{siteUrl}}"`
 4. `git push -u origin {{branch}}`
 5. Deteksi base branch via `git symbolic-ref refs/remotes/origin/HEAD` (fallback `main`). Tulis ringkasan fix + hasil verifikasi ke `/tmp/pr-body-{{reportId}}.md`, lalu:
-   `gh pr create --head {{branch}} --base <base> --title "fix({{kategori}}): {{judul}} (report {{reportId}})" --body-file /tmp/pr-body-{{reportId}}.md`
+   `gh pr create --head {{branch}} --base <base> --title "fix(report {{reportId}}): {{siteUrl}}" --body-file /tmp/pr-body-{{reportId}}.md`
 6. Bila branch `{{branch}}` sudah ada di remote dari pekerjaan lain, pakai `{{branch}}-r2`.
 
 ## Larangan Keras (berbahaya — melanggar = merusak repo orang lain)

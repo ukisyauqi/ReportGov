@@ -3,13 +3,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
-import { KATEGORI_LIST, STATUS_LIST } from '@/lib/validation';
+import { STATUS_LIST } from '@/lib/validation';
 
 interface AdminReport {
   id: string;
   siteUrl: string;
-  kategori: string;
-  judul: string;
   deskripsi: string;
   screenshot: string | null;
   namaPelapor: string | null;
@@ -27,7 +25,6 @@ interface AdminReport {
 export default function AdminMonitoringPage() {
   const [adminKey, setAdminKey] = useState('admin-secret-go-id-2026');
   const [statusFilter, setStatusFilter] = useState('');
-  const [kategoriFilter, setKategoriFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [reports, setReports] = useState<AdminReport[]>([]);
@@ -43,7 +40,6 @@ export default function AdminMonitoringPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
-      if (kategoriFilter) params.set('kategori', kategoriFilter);
       if (searchQuery.trim()) params.set('q', searchQuery.trim());
 
       const res = await fetch(`/api/reports?${params.toString()}`, {
@@ -72,7 +68,7 @@ export default function AdminMonitoringPage() {
       setAuthError(String((err as Error)?.message || err));
       setLoading(false);
     }
-  }, [adminKey, statusFilter, kategoriFilter, searchQuery]);
+  }, [adminKey, statusFilter, searchQuery]);
 
   useEffect(() => {
     fetchReports();
@@ -119,7 +115,7 @@ export default function AdminMonitoringPage() {
         </div>
 
         {/* Filter Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5 pt-5 border-t border-slate-100">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
               Filter Status
@@ -140,31 +136,13 @@ export default function AdminMonitoringPage() {
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Filter Kategori
-            </label>
-            <select
-              value={kategoriFilter}
-              onChange={(e) => setKategoriFilter(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
-            >
-              <option value="">Semua Kategori</option>
-              {KATEGORI_LIST.map((kat) => (
-                <option key={kat} value={kat}>
-                  {kat}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
-              Cari URL / Judul / ID
+              Cari URL / ID
             </label>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari *.go.id atau judul..."
+              placeholder="Cari *.go.id atau ID laporan..."
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
             />
           </div>
@@ -214,14 +192,18 @@ export default function AdminMonitoringPage() {
                       <StatusBadge status={rep.status} />
                     </div>
                     <p className="text-sm font-semibold text-slate-900 line-clamp-1">
-                      {rep.judul}
+                      {rep.deskripsi}
                     </p>
                     <div className="flex items-center justify-between mt-1.5 text-xs text-slate-500">
                       <span className="truncate max-w-[190px]">
                         {rep.siteUrl}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-slate-200/70 text-slate-700 text-[11px]">
-                        {rep.kategori}
+                      <span className="text-[11px]">
+                        {new Date(rep.createdAt).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
                       </span>
                     </div>
                   </button>
@@ -245,8 +227,8 @@ export default function AdminMonitoringPage() {
                   <span className="font-mono text-xs text-slate-500">
                     ID: {selectedReport.id}
                   </span>
-                  <h2 className="text-lg font-bold text-slate-900 mt-0.5">
-                    {selectedReport.judul}
+                  <h2 className="text-lg font-bold text-slate-900 mt-0.5 line-clamp-2">
+                    {selectedReport.deskripsi}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">

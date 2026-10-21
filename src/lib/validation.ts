@@ -1,16 +1,5 @@
 import { z } from 'zod';
 
-export const KATEGORI_LIST = [
-  'down',
-  'bug-tampilan',
-  'link-rusak',
-  'konten-salah',
-  'lambat',
-  'tidak-bisa-diakses-hp',
-  'keamanan',
-  'lainnya',
-] as const;
-
 export const STATUS_LIST = [
   'baru',
   'diproses-ai',
@@ -18,17 +7,6 @@ export const STATUS_LIST = [
   'selesai',
   'ditolak',
 ] as const;
-
-export const KATEGORI_LABELS: Record<(typeof KATEGORI_LIST)[number], string> = {
-  down: 'Website Down / Tidak Bisa Diakses',
-  'bug-tampilan': 'Bug Tampilan / UI Rusak',
-  'link-rusak': 'Link Rusak / 404 Not Found',
-  'konten-salah': 'Konten Salah / Tidak Akurat',
-  lambat: 'Performa Lambat / Timeout',
-  'tidak-bisa-diakses-hp': 'Tidak Responsif di HP (Mobile)',
-  keamanan: 'Celah Keamanan / Deface',
-  lainnya: 'Lainnya',
-};
 
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024; // 5MB
 
@@ -48,14 +26,6 @@ export const createReportSchema = z.object({
       },
       { message: 'URL harus menggunakan protokol http:// atau https://' }
     ),
-  kategori: z.enum(KATEGORI_LIST, {
-    errorMap: () => ({ message: 'Pilih kategori masalah yang valid' }),
-  }),
-  judul: z
-    .string()
-    .trim()
-    .min(10, 'Judul minimal 10 karakter')
-    .max(200, 'Judul maksimal 200 karakter'),
   deskripsi: z
     .string()
     .trim()
@@ -88,7 +58,10 @@ export const createReportSchema = z.object({
   kontak: z
     .string()
     .trim()
-    .max(120, 'Kontak maksimal 120 karakter')
+    .max(120, 'Email maksimal 120 karakter')
+    .refine((val) => val.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
+      message: 'Format email tidak valid',
+    })
     .optional()
     .nullable(),
 });

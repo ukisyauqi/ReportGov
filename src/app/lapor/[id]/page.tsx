@@ -4,13 +4,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { StatusBadge } from '@/components/StatusBadge';
-import { KATEGORI_LABELS } from '@/lib/validation';
 
 interface ReportDetail {
   id: string;
   siteUrl: string;
-  kategori: string;
-  judul: string;
   deskripsi: string;
   screenshot: string | null;
   namaPelapor: string | null;
@@ -110,8 +107,8 @@ export default function LaporTrackingPage() {
               <span>/</span>
               <span className="font-mono">Laporan #{report.id}</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-              {report.judul}
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 line-clamp-2">
+              {report.deskripsi}
             </h1>
           </div>
           <div className="flex items-center gap-3">
@@ -141,11 +138,13 @@ export default function LaporTrackingPage() {
           </div>
 
           <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-            <span className="text-xs text-slate-500 block">Kategori</span>
+            <span className="text-xs text-slate-500 block">Dilaporkan</span>
             <span className="font-semibold text-slate-900 text-xs sm:text-sm">
-              {KATEGORI_LABELS[
-                report.kategori as keyof typeof KATEGORI_LABELS
-              ] || report.kategori}
+              {new Date(report.createdAt).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
             </span>
           </div>
 

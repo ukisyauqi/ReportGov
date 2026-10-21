@@ -12,8 +12,6 @@ datasource db {
 model Report {
   id          String   @id @default(cuid())
   siteUrl     String
-  kategori    String   // down | bug-tampilan | link-rusak | konten-salah | lambat | tidak-bisa-diakses-hp | keamanan | lainnya
-  judul       String
   deskripsi   String
   screenshot  String?
   namaPelapor String?

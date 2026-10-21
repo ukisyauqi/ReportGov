@@ -8,3 +8,4 @@ out/
 /tmp/
 public/artifacts/
 artifacts/
+.serena/
