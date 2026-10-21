@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ThanksPanel } from '@/components/lapor-ui';
 
 interface ReportDetail {
   id: string;
@@ -21,6 +22,8 @@ interface ReportDetail {
   updatedAt: string;
 }
 
+const PROCESSING = new Set(['baru', 'diproses-ai']);
+
 export default function LaporTrackingPage() {
   const params = useParams<{ id: string }>();
   const reportId = params?.id || '';
@@ -28,6 +31,7 @@ export default function LaporTrackingPage() {
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const fetchReport = useCallback(async () => {
     if (!reportId) return;
@@ -54,213 +58,257 @@ export default function LaporTrackingPage() {
     fetchReport();
   }, [fetchReport]);
 
-  // Auto-poll setiap 2.5 detik selama masih baru atau diproses-ai
   useEffect(() => {
     if (!report) return;
-    if (report.status !== 'baru' && report.status !== 'diproses-ai') return;
-
-    const timer = setInterval(() => {
-      fetchReport();
-    }, 2500);
-
+    if (!PROCESSING.has(report.status)) return;
+    const timer = setInterval(fetchReport, 2500);
     return () => clearInterval(timer);
   }, [report, fetchReport]);
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-        <div className="w-7 h-7 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-sm text-slate-600">
-          Memuat detail laporan #{reportId}...
-        </p>
+      <div className="bg-white rounded-3xl border border-line shadow-card p-12 text-center">
+        <div className="w-8 h-8 border-[3px] border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm text-ink-soft">Memuat detail laporan #{reportId}...</p>
       </div>
     );
   }
 
   if (error || !report) {
     return (
-      <div className="bg-white rounded-2xl border border-rose-200 p-8 text-center">
-        <h1 className="text-lg font-bold text-rose-700 mb-2">
-          Gagal Memuat Laporan
+      <div className="bg-white rounded-3xl border border-brand-200 p-10 text-center shadow-card">
+        <h1 className="text-lg font-extrabold text-brand-700 mb-2">
+          Gagal memuat laporan
         </h1>
-        <p className="text-sm text-slate-600 mb-4">{error}</p>
+        <p className="text-sm text-ink-soft mb-5">{error}</p>
         <Link
           href="/"
-          className="inline-block rounded-lg bg-slate-900 text-white px-4 py-2 text-xs font-semibold"
+          className="inline-flex items-center gap-1.5 rounded-full bg-ink text-white px-5 py-2 text-xs font-bold"
         >
-          &larr; Kembali ke Beranda
+          ← Kembali ke Beranda
         </Link>
       </div>
     );
   }
 
+  const done = !PROCESSING.has(report.status);
+  const reportNo = `#WBP-${new Date(report.createdAt).getFullYear()}${String(
+    new Date(report.createdAt).getMonth() + 1
+  ).padStart(2, '0')}${String(new Date(report.createdAt).getDate()).padStart(2, '0')}-${report.id.slice(-6).toUpperCase()}`;
+
   return (
-    <div className="space-y-6">
-      {/* Header Status */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-              <Link href="/" className="hover:underline">
-                Beranda
-              </Link>
-              <span>/</span>
-              <span className="font-mono">Laporan #{report.id}</span>
+    <div className="space-y-5">
+      {/* Success / status card */}
+      <div className="bg-white rounded-3xl border border-line shadow-card overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 p-6 sm:p-8">
+          <div className="lg:col-span-3">
+            <div className="flex items-start gap-4">
+              <span
+                className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-white text-xl font-extrabold ${
+                  done ? 'bg-brand-600 shadow-pop' : 'bg-ink'
+                }`}
+              >
+                {done ? (
+                  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden>
+                    <path d="M4 12.5l5 5L20 6.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : (
+                  <span className="w-5 h-5 border-[3px] border-white border-t-transparent rounded-full animate-spin" />
+                )}
+              </span>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-ink">
+                  {done ? 'Laporan Anda telah terkirim!' : 'Laporan Anda sedang diproses...'}
+                </h1>
+                <p className="text-[12px] text-ink-soft mt-1 leading-relaxed">
+                  {done
+                    ? 'Terima kasih, laporan Anda sudah berhasil dikirim. Kami akan meninjau dan menindaklanjuti pengaduan ini secepatnya.'
+                    : 'Laporan Anda sudah diterima dan sedang dicek otomatis oleh AI harness. Halaman ini akan diperbarui secara langsung.'}
+                </p>
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 line-clamp-2">
-              {report.deskripsi}
-            </h1>
+
+            {/* Meta strip: nomor / status / tanggal */}
+            <div className="mt-6 rounded-2xl border border-line divide-y sm:divide-y-0 sm:divide-x sm:flex divide-line/80 overflow-hidden">
+              <div className="flex-1 px-4 py-3.5">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-ink-faint mb-1">
+                  Nomor Laporan
+                </p>
+                <p className="text-[13px] font-extrabold text-ink flex items-center gap-2">
+                  <span className="truncate">{reportNo}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(report.id).catch(() => {});
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    aria-label="Salin ID laporan"
+                    className="text-ink-faint hover:text-brand-700 transition shrink-0"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                      <rect x="9" y="9" width="12" height="12" rx="2" />
+                      <path d="M5 15V5a2 2 0 0 1 2-2h10" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  {copied && <span className="text-[10px] font-bold text-emerald-600">Disalin!</span>}
+                </p>
+              </div>
+              <div className="flex-1 px-4 py-3.5">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-ink-faint mb-1">
+                  Status
+                </p>
+                <StatusBadge status={report.status} />
+              </div>
+              <div className="flex-1 px-4 py-3.5">
+                <p className="text-[10px] uppercase tracking-wider font-bold text-ink-faint mb-1">
+                  Tanggal
+                </p>
+                <p className="text-[13px] font-bold text-ink">
+                  {new Date(report.createdAt).toLocaleDateString('id-ID', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                  {', '}
+                  {new Date(report.createdAt).toLocaleTimeString('id-ID', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-bold px-5 py-2.5 shadow-pop transition"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor" aria-hidden>
+                  <path d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3z" />
+                </svg>
+                Kembali ke Beranda
+              </Link>
+              {report.prUrl && (
+                <a
+                  href={report.prUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-5 py-2.5 text-[13px] font-bold text-emerald-700 hover:border-emerald-400 transition"
+                >
+                  Lihat Pull Request →
+                </a>
+              )}
+              {!done && (
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-brand-700 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-brand-600 animate-pulse-dot" />
+                  Memperbarui otomatis...
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={report.status} />
-            <button
-              type="button"
-              onClick={fetchReport}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-medium text-slate-700 transition"
-            >
-              Refresh
-            </button>
+
+          <div className="lg:col-span-2">
+            <ThanksPanel />
           </div>
         </div>
+      </div>
 
-        {/* Metadata Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-5 text-sm">
-          <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-            <span className="text-xs text-slate-500 block">URL Website</span>
+      {/* Detail laporan */}
+      <div className="bg-white rounded-3xl border border-line shadow-card p-6 sm:p-8">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-faint">
+          Detail Laporan
+        </p>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
+            <span className="text-[11px] text-ink-faint block mb-0.5">URL Website</span>
             <a
               href={report.siteUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-semibold text-blue-700 hover:underline break-all text-xs sm:text-sm"
+              className="font-bold text-brand-700 hover:underline break-all text-[13px]"
             >
               {report.siteUrl}
             </a>
           </div>
-
-          <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-            <span className="text-xs text-slate-500 block">Dilaporkan</span>
-            <span className="font-semibold text-slate-900 text-xs sm:text-sm">
-              {new Date(report.createdAt).toLocaleDateString('id-ID', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </span>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-            <span className="text-xs text-slate-500 block">
-              OpenCode Session ID
-            </span>
-            <span className="font-mono text-xs font-semibold text-slate-900 break-all">
+          <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
+            <span className="text-[11px] text-ink-faint block mb-0.5">OpenCode Session ID</span>
+            <span className="font-mono text-[12px] font-bold text-ink break-all">
               {report.sessionId || 'Menunggu sesi OpenCode...'}
             </span>
           </div>
-
-          <div className="rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-            <span className="text-xs text-slate-500 block">Pull Request</span>
-            {report.prUrl ? (
-              <a
-                href={report.prUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="font-semibold text-emerald-700 hover:underline break-all text-xs sm:text-sm"
-              >
-                {report.prUrl} &rarr;
-              </a>
-            ) : (
-              <span className="text-xs text-slate-500">Belum ada PR</span>
-            )}
-          </div>
         </div>
-
-        {report.repoUrl && (
-          <div className="mt-4 text-xs text-slate-500 flex flex-wrap items-center gap-2">
-            <span>Target Repository:</span>
-            <code className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono">
-              {report.repoUrl}
-            </code>
-          </div>
-        )}
-      </div>
-
-      {/* Detail Laporan & Screenshot */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <h2 className="text-base font-bold text-slate-900">
-          Deskripsi Masalah & Reproduksi
-        </h2>
-        <pre className="whitespace-pre-wrap font-sans text-sm text-slate-700 bg-slate-50 rounded-xl p-4 border border-slate-100 leading-relaxed">
+        <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] text-ink-soft bg-cream/70 rounded-2xl p-4 border border-line/70 leading-relaxed">
           {report.deskripsi}
         </pre>
-
         {report.screenshot && (
-          <div>
-            <span className="text-xs font-semibold text-slate-600 block mb-2">
-              Lampiran Screenshot Pelapor:
+          <div className="mt-3">
+            <span className="text-[11px] font-bold text-ink-soft block mb-2">
+              Lampiran screenshot:
             </span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={report.screenshot}
-              alt="Screenshot Laporan"
-              className="max-h-80 rounded-xl border border-slate-200 object-contain"
+              alt="Screenshot laporan"
+              className="max-h-80 rounded-2xl border border-line object-contain"
             />
           </div>
         )}
+        {report.repoUrl && (
+          <p className="mt-3 text-[11px] text-ink-faint">
+            Target repository:{' '}
+            <code className="px-2 py-0.5 rounded bg-cream-dark text-ink font-mono">
+              {report.repoUrl}
+            </code>
+          </p>
+        )}
       </div>
 
-      {/* Prompt Terkirim (Read-Only Collapsible) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      {/* Prompt */}
+      <div className="bg-white rounded-3xl border border-line shadow-card p-6 sm:p-8">
         <details className="group" open={Boolean(report.prompt)}>
-          <summary className="cursor-pointer list-none flex items-center justify-between">
+          <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Prompt Terkirim ke OpenCode (Read-Only)
+              <h2 className="text-base font-extrabold text-ink tracking-tight">
+                Prompt yang dikirim ke OpenCode
               </h2>
-              <p className="text-xs text-slate-500">
-                Klik untuk membuka/menutup prompt yang disusun otomatis dari
-                template + bukti live check
+              <p className="text-[12px] text-ink-faint">
+                Disusun otomatis dari laporan + bukti live check
               </p>
             </div>
-            <span className="text-xs font-semibold px-3 py-1 rounded-md bg-slate-100 text-slate-700 group-open:bg-slate-900 group-open:text-white transition">
-              Toggle Prompt
+            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-cream-dark text-ink-soft group-open:bg-ink group-open:text-white transition shrink-0">
+              Buka / Tutup
             </span>
           </summary>
-
-          <div className="mt-4">
-            <textarea
-              readOnly
-              value={
-                report.prompt ||
-                'Prompt sedang disusun oleh backend harness...'
-              }
-              rows={12}
-              className="w-full font-mono text-xs bg-slate-900 text-slate-100 rounded-xl p-4 border border-slate-800 focus:outline-none"
-            />
-          </div>
+          <textarea
+            readOnly
+            value={report.prompt || 'Prompt sedang disusun oleh backend harness...'}
+            rows={10}
+            className="mt-4 w-full font-mono text-[11px] bg-ink text-stone-200 rounded-2xl p-4 focus:outline-none"
+          />
         </details>
       </div>
 
-      {/* Harness Log */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      {/* Live feed */}
+      <div className="bg-white rounded-3xl border border-line shadow-card p-6 sm:p-8">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900">
+            <h2 className="text-base font-extrabold text-ink tracking-tight">
               Aktivitas OpenCode
             </h2>
-            <p className="text-xs text-slate-500">
-              Live feed: file yang dibaca/ditulis AI, perintah yang dijalankan,
-              hingga Pull Request
+            <p className="text-[12px] text-ink-faint">
+              Live feed: file yang dibaca AI, perintah yang dijalankan, hingga Pull Request
             </p>
           </div>
-          {(report.status === 'baru' || report.status === 'diproses-ai') && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              Auto-updating...
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={fetchReport}
+            className="px-4 py-1.5 rounded-full border border-line hover:border-ink text-[12px] font-bold text-ink-soft transition"
+          >
+            Muat ulang
+          </button>
         </div>
-
-        <pre className="w-full font-mono text-xs bg-slate-950 text-emerald-400 rounded-xl p-4 overflow-x-auto max-h-[480px] overflow-y-auto whitespace-pre-wrap leading-relaxed border border-slate-800">
+        <pre className="log-scroll w-full font-mono text-[11px] bg-ink text-emerald-300/90 rounded-2xl p-4 overflow-x-auto max-h-[420px] overflow-y-auto whitespace-pre-wrap leading-relaxed">
           {report.harnessLog || 'Menunggu log pertama dari orchestrator...'}
         </pre>
       </div>
