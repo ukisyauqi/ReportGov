@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     const KATEGORI_MAP: Record<string, string> = {
       'Website tidak bisa diakses': 'down',
       'Website lambat': 'lambat',
-      'Konten tidak sesuai / tidak akurat': 'konten-salah',
+      'Bug / Fitur tidak jalan': 'bug-fitur',
       'Masalah lainnya': 'lainnya',
     };
     const kategori =

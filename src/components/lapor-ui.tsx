@@ -48,7 +48,7 @@ export function Eyebrow({ children }: { children: React.ReactNode }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Step progress — "1 dari 4" + thin track with red fill              */
+/* Step progress — "1 dari 5" + thin track with red fill              */
 /* ------------------------------------------------------------------ */
 export function StepProgress({
   current,
@@ -181,6 +181,34 @@ const MOTIFS: Record<number, React.ReactNode> = {
   ),
   4: (
     <div className="relative animate-drift">
+      <div className="w-52 h-36 rounded-2xl bg-white/90 shadow-card border border-white p-3 flex flex-col items-center justify-center gap-2">
+        <span className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center">
+          <svg
+            viewBox="0 0 24 24"
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden
+          >
+            <path
+              d="M12 16V4m0 0l-4 4m4-4l4 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+        <div className="w-24 h-2 rounded bg-cream-dark" />
+        <div className="w-16 h-2 rounded bg-stone-200" />
+      </div>
+    </div>
+  ),
+  5: (
+    <div className="relative animate-drift">
       <div className="flex items-end gap-0">
         <div className="flex gap-[3px] items-end h-24">
           {["h-14", "h-20", "h-24", "h-16", "h-20", "h-14"].map((h, i) => (
@@ -234,7 +262,7 @@ export function VisualPanel({ step }: { step: number }) {
         {MOTIFS[step] || MOTIFS[1]}
       </div>
 
-      {step === 4 && (
+      {step === 5 && (
         <p className="absolute top-8 left-8 text-white font-bold text-lg leading-snug drop-shadow">
           Pastikan data
           <br />
