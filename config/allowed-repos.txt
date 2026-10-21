@@ -1,0 +1,2 @@
+# Daftar repository GitHub yang diizinkan untuk diproses otomatis oleh AI Harness
+https://github.com/ukisyauqi/todo-list-buggy.git

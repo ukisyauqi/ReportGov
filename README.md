@@ -1,0 +1,91 @@
+# LaporWeb.go.id — Web Pelaporan Website Pemerintah + Auto-Fix AI Harness (OpenCode Serve)
+
+Sistem end-to-end tempat masyarakat melaporkan masalah pada website pemerintah (`*.go.id`), lalu **AI (OpenCode) mengerjakan sisanya sampai Pull Request**:
+1. Sistem menyiapkan repo: validasi mapping situs, cek live (`fetch` + Playwright screenshot & `EVIDENCE.md`), clone repo target + guardrails `opencode.json`.
+2. Sistem mengirim SATU instruksi end-to-end (perbaiki kode, verifikasi mandiri, git branch/commit/push, buat PR) ke OpenCode — halaman tracking menampilkan live feed aktivitas AI (`edit ...`, `$ ...`, hingga PR).
+3. AI yang menjalankan semuanya sampai `PR_URL:` terbit; sistem hanya mencatatnya (verifikasi read-only via `gh pr view`).
+
+---
+
+## Prasyarat
+
+1. **Node.js 20+** & **npm**
+2. **OpenCode CLI** terinstall di `PATH` dan sudah login:
+   ```sh
+   opencode auth login
+   ```
+3. **GitHub CLI (`gh`)** sudah login (untuk pembuatan PR otomatis):
+   ```sh
+   gh auth login
+   ```
+
+---
+
+## Instalasi & Setup Database
+
+```sh
+npm install
+cp .env.example .env
+npm run db:push
+npm run db:seed
+```
+
+---
+
+## Menjalankan Sistem
+
+Jalankan 2 proses utama (atau 3 proses jika menggunakan `opencode serve` eksplisit):
+
+```sh
+# Terminal 1 (Opsional — jika tidak diset, wrapper otomatis menjalankan `Service.ensure()`)
+npm run opencode:serve
+
+# Terminal 2 — OpenCode Wrapper (:3001)
+npm run wrapper:dev
+
+# Terminal 3 — Next.js Web & API (:3000)
+npm run dev
+```
+
+- **Form Publik**: [http://localhost:3000](http://localhost:3000)
+- **Tracking Laporan**: `http://localhost:3000/lapor/<id>`
+- **Monitoring Admin (Read-Only)**: [http://localhost:3000/admin](http://localhost:3000/admin) (default `x-admin-key`: `admin-secret-go-id-2026`)
+
+---
+
+## Test Cepat OpenCode Wrapper (`:3001`)
+
+```sh
+# 1. Cek koneksi wrapper ke OpenCode server
+curl http://localhost:3001/health
+
+# 2. Test kirim prompt singkat ke OpenCode via wrapper
+curl -X POST http://localhost:3001/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"jawab dengan SATU kata saja: halo"}'
+
+# 3. Lihat activity feed sebuah session (yang tampil di halaman tracking)
+curl http://localhost:3001/sessions/<sessionId>/activity?limit=100
+```
+
+---
+
+## Menambahkan Mapping Website & Repo Allowlist
+
+1. Tambahkan pasangan URL website pemerintah dan repo GitHub di `config/site-to-repo.json`:
+   ```json
+   {
+     "https://layanan.kominfo.go.id": "https://github.com/pemerintah-id/portal-layanan-kominfo.git"
+   }
+   ```
+2. Daftarkan URL repo tersebut ke dalam `config/allowed-repos.txt`.
+
+---
+
+## Debug / Retry Harness Manual (CLI)
+
+Meskipun seluruh laporan diproses otomatis saat submit (`POST /api/reports`), Anda dapat menjalankan ulang harness untuk ID laporan tertentu melalui CLI:
+
+```sh
+npm run harness -- --reportId=seed-dukcapil-broken-link
+```

@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Catatan: Untuk PostgreSQL di production, ubah provider = "postgresql"
+// dan tambahkan @db.Text pada kolom deskripsi, prompt, dan harnessLog.
+model Report {
+  id          String   @id @default(cuid())
+  siteUrl     String
+  kategori    String   // down | bug-tampilan | link-rusak | konten-salah | lambat | tidak-bisa-diakses-hp | keamanan | lainnya
+  judul       String
+  deskripsi   String
+  screenshot  String?
+  namaPelapor String?
+  kontak      String?
+  status      String   @default("baru") // baru | diproses-ai | pr-dibuat | selesai | ditolak
+  prompt      String?
+  harnessLog  String?
+  prUrl       String?
+  repoUrl     String?
+  sessionId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
