@@ -15,14 +15,14 @@ export function LaporLogo({ compact = false }: { compact?: boolean }) {
           aria-hidden
         >
           <path d="M3 10.5v3c0 .83.67 1.5 1.5 1.5H6v2.5c0 .28.22.5.5.5.13 0 .26-.05.35-.15l3.15-3.1c.09-.09.21-.15.35-.15H15c2.48 0 4.5-2.02 4.5-4.5S17.48 6 15 6H6c-1.66 0-3 1.34-3 3v1.5zm3.5-1.5H15c1.38 0 2.5 1.12 2.5 2.5S16.38 14 15 14H9.5l-2 2v-2H6.5v-5z" />
-          <circle cx="10" cy="11.5" r="1" fill="#C1121F" />
-          <circle cx="13" cy="11.5" r="1" fill="#C1121F" />
+          <circle cx="10" cy="11.5" r="1" fill="#008acaff" />
+          <circle cx="13" cy="11.5" r="1" fill="#008acaff" />
         </svg>
       </div>
       {!compact && (
         <div className="flex items-center gap-2.5">
           <span className="font-extrabold tracking-tight text-lg text-ink leading-none">
-            LAPOR
+            ReportGov
           </span>
           <span className="hidden sm:block w-px h-7 bg-line" />
           <span className="hidden sm:block text-[10px] leading-tight text-ink-faint font-medium">

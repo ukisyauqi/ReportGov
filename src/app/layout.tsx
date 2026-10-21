@@ -11,7 +11,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "LAPOR — Pengaduan Website Pemerintah",
+  title: "ReportGov — Pengaduan Website Pemerintah",
   description:
     "Sampaikan keluhan Anda tentang website pemerintah. Bersama kita wujudkan layanan pemerintah yang lebih baik.",
 };
@@ -56,7 +56,7 @@ export default function RootLayout({
           <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-ink-faint">
             <span className="flex items-center gap-2">
               <span className="w-4 h-4 rounded-[5px] rounded-bl-[1px] bg-brand-600 inline-block" />
-              LAPOR — Pengaduan Website Pemerintah
+              ReportGov — Pengaduan Website Pemerintah
             </span>
             <span>Bersama kita wujudkan layanan pemerintah yang lebih baik.</span>
           </div>

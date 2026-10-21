@@ -5,23 +5,35 @@ import { processViaWrapper } from '@harness/process-via-wrapper';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory rate limiter: maks 10 laporan per IP per jam
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const RATE_LIMIT_MAX = 10;
-const ipHits = new Map<string, number[]>();
+// In-memory rate limiter: Hanya menerima 1 laporan berhasil per IP selama 1 hari (24 jam)
+const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 jam
+const RATE_LIMIT_MAX = 1; // 1 laporan sukses
+const successfulSubmissionsByIp = new Map<string, number[]>();
 
-function checkRateLimit(ip: string): boolean {
+function checkRateLimit(ip: string): { allowed: boolean; retryAfterHours?: number } {
   const now = Date.now();
-  const timestamps = (ipHits.get(ip) || []).filter(
+  const timestamps = (successfulSubmissionsByIp.get(ip) || []).filter(
     (t) => now - t < RATE_LIMIT_WINDOW_MS
   );
+  successfulSubmissionsByIp.set(ip, timestamps);
+
   if (timestamps.length >= RATE_LIMIT_MAX) {
-    ipHits.set(ip, timestamps);
-    return false;
+    const oldest = timestamps[0];
+    const msRemaining = RATE_LIMIT_WINDOW_MS - (now - oldest);
+    const retryAfterHours = Math.max(1, Math.ceil(msRemaining / (60 * 60 * 1000)));
+    return { allowed: false, retryAfterHours };
   }
+
+  return { allowed: true };
+}
+
+function recordSuccessfulSubmission(ip: string): void {
+  const now = Date.now();
+  const timestamps = (successfulSubmissionsByIp.get(ip) || []).filter(
+    (t) => now - t < RATE_LIMIT_WINDOW_MS
+  );
   timestamps.push(now);
-  ipHits.set(ip, timestamps);
-  return true;
+  successfulSubmissionsByIp.set(ip, timestamps);
 }
 
 export async function POST(req: NextRequest) {
@@ -29,11 +41,11 @@ export async function POST(req: NextRequest) {
     const forwardedFor = req.headers.get('x-forwarded-for');
     const ip = forwardedFor ? forwardedFor.split(',')[0].trim() : '127.0.0.1';
 
-    if (!checkRateLimit(ip)) {
+    const limitCheck = checkRateLimit(ip);
+    if (!limitCheck.allowed) {
       return NextResponse.json(
         {
-          error:
-            'Batas pengiriman laporan tercapai (maksimal 10 laporan per jam per IP). Silakan coba lagi nanti.',
+          error: `Batas pengiriman laporan tercapai (maksimal 1 laporan per hari per IP). Anda telah berhasil mengirimkan laporan hari ini. Silakan coba lagi dalam ${limitCheck.retryAfterHours} jam untuk mencegah lonjakan dan spam.`,
         },
         { status: 429 }
       );
@@ -86,6 +98,9 @@ export async function POST(req: NextRequest) {
         status: 'baru',
       },
     });
+
+    // Catat bahwa IP ini berhasil mengirimkan 1 laporan valid (mencegah spam & lonjakan)
+    recordSuccessfulSubmission(ip);
 
     // Trigger otomatis tanpa klik admin (async background execution)
     setImmediate(() => {

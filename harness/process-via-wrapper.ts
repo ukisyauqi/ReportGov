@@ -420,6 +420,101 @@ async function runAiTask(
   return { reply: String(outcome.data?.reply || '') };
 }
 
+async function validateBugWithAi(
+  report: { id: string; siteUrl: string; deskripsi: string },
+  evidence: string,
+  workRoot: string
+): Promise<{ isValid: boolean; reason: string }> {
+  const cleanDesc = report.deskripsi.replace(/^\[(?:Judul|Kategori):[^\]]+\]\s*/i, '').trim();
+  const words = cleanDesc.split(/\s+/).filter(Boolean);
+
+  // 1. Deteksi teks acak / keyboard smash tanpa arti
+  const isGibberish =
+    cleanDesc.length < 15 ||
+    words.length < 2 ||
+    (words.length <= 4 && words.some((w) => w.length > 12 && !/[aeiou]{2,}/i.test(w)));
+
+  if (isGibberish) {
+    return {
+      isValid: false,
+      reason: 'Deskripsi laporan berupa teks acak atau tidak mendeskripsikan kendala nyata.',
+    };
+  }
+
+  // 2. Evaluasi AI via OpenCode session jika service wrapper tersedia
+  try {
+    const valSessionId = await createSession(workRoot);
+    const inspectPrompt = `Kamu adalah Quality Assurance & Bug Inspector independen.
+Tugasmu adalah menganalisis apakah laporan kendala website pemerintah ini BENAR ADANYA (Valid Bug) atau TIDAK VALID (False Positive / Spam / Teks Acak / Masalah Tidak Terbukti).
+
+Informasi Laporan:
+- Target URL: ${report.siteUrl}
+- Isi Laporan:
+${report.deskripsi}
+
+Hasil Simulasi Browser & Bukti Live:
+${evidence}
+
+Kriteria Penilaian:
+1. Nyatakan "isValid": false jika:
+   - Isi laporan adalah teks acak/keyboard mash (contoh: "asdakmnak akdkamkdamdka"), kata tanpa makna, atau keluhan spam.
+   - Pelapor mengklaim website down atau error fatal, padahal simulasi live membuktikan website berstatus HTTP 200 OK, responsif, dan tidak ada console error/broken page.
+   - Laporan tidak dapat direplikasi atau tidak ada bukti masalah yang sesuai.
+2. Nyatakan "isValid": true jika:
+   - Terdapat error nyata saat simulasi live (HTTP 4xx/5xx, koneksi putus, timeout, broken link, atau JavaScript console error).
+   - Laporan menjelaskan bug fungsional/tampilan yang logis dan relevan untuk diperiksa pada repositori kode.
+
+Format balasan WAJIB berupa JSON saja:
+{
+  "isValid": true atau false,
+  "reason": "Alasan singkat (1-2 kalimat bahasa Indonesia) mengapa laporan ini valid atau ditolak"
+}`;
+
+    const res = await runAiTask(report.id, valSessionId, workRoot, inspectPrompt);
+    const parsed = tryParseJsonObject(res.reply);
+    if (parsed && typeof parsed.isValid === 'boolean') {
+      return {
+        isValid: parsed.isValid,
+        reason: String(
+          parsed.reason ||
+            (parsed.isValid ? 'Bug terkonfirmasi valid' : 'Error tidak terbukti / false positive')
+        ),
+      };
+    }
+  } catch (err) {
+    console.warn('[validateBugWithAi] Gagal memanggil AI inspector, menggunakan analisis heuristik:', err);
+  }
+
+  // Fallback analisa heuristik jika AI inspector tidak dapat dihubungi:
+  const hasLiveError =
+    evidence.includes('GAGAL DIAKSES') ||
+    /HTTP Status: [45]\d\d/.test(evidence) ||
+    /Console Errors \(\d+\)/.test(evidence);
+
+  if (hasLiveError) {
+    return {
+      isValid: true,
+      reason: 'Simulasi live mendeteksi anomali/error nyata pada halaman target.',
+    };
+  }
+
+  const claimsDown =
+    /tidak bisa diakses|website down|halaman tidak muncul|error 404|error 500/i.test(report.deskripsi);
+  const isLive200 = /HTTP Status: 200/i.test(evidence);
+
+  if (claimsDown && isLive200) {
+    return {
+      isValid: false,
+      reason: 'Simulasi live menunjukkan website aktif normal (HTTP 200 OK) tanpa error, kendala down tidak terbukti.',
+    };
+  }
+
+  return {
+    isValid: true,
+    reason: 'Laporan memiliki deskripsi kendala yang dapat dianalisis pada basis kode.',
+  };
+}
+
 export async function processViaWrapper(reportId: string): Promise<void> {
   const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) {
@@ -431,16 +526,19 @@ export async function processViaWrapper(reportId: string): Promise<void> {
     where: { id: reportId },
     data: { status: 'diproses-ai', harnessLog: '' },
   });
-  await appendActivityLine(reportId, `mengerjakan ${report.siteUrl} ...`);
+  await appendActivityLine(reportId, `memulai pemrosesan laporan untuk ${report.siteUrl} ...`);
 
-  // 1. Sediakan repo: validasi mapping site -> repo.
+  // =========================================================================
+  // HIERARKI 1: Validasi URL terhadap data repositori sistem
+  // =========================================================================
+  await appendActivityLine(reportId, `[Hierarki 1] Memvalidasi URL target pada data sistem...`);
   const resolved = await resolveAllowedRepo(report.siteUrl);
   if (!resolved.ok) {
     await prisma.report.update({
       where: { id: reportId },
       data: { status: 'ditolak' },
     });
-    await appendActivityLine(reportId, `ditolak: ${resolved.reason}`);
+    await appendActivityLine(reportId, `[Hierarki 1 Ditolak] ${resolved.reason}`);
     return;
   }
 
@@ -449,11 +547,50 @@ export async function processViaWrapper(reportId: string): Promise<void> {
     where: { id: reportId },
     data: { repoUrl },
   });
+  await appendActivityLine(
+    reportId,
+    `[Hierarki 1 Lolos] URL terdaftar pada repositori (${repoUrl}). Melanjutkan ke Hierarki 2...`
+  );
 
-  // 2. Sediakan konteks + repo lokal. Setelah ini giliran AI sampai PR.
+  // =========================================================================
+  // HIERARKI 2: Simulasi & Pemeriksaan AI atas Kebenaran Error
+  // =========================================================================
   const workRoot = path.join('/tmp', `harness-${reportId}`);
-  const workdir = path.join(workRoot, 'repo');
+  await appendActivityLine(
+    reportId,
+    `[Hierarki 2] Menjalankan simulasi browser & pemeriksaan live ke ${report.siteUrl}...`
+  );
   const evidence = await runLiveCheck(reportId, report.siteUrl, workRoot);
+
+  await appendActivityLine(
+    reportId,
+    `[Hierarki 2] Agen AI memeriksa apakah error benar adanya...`
+  );
+  const validation = await validateBugWithAi(report, evidence, workRoot);
+
+  if (!validation.isValid) {
+    await prisma.report.update({
+      where: { id: reportId },
+      data: { status: 'ditolak' },
+    });
+    await appendActivityLine(
+      reportId,
+      `[Hierarki 2 Ditolak] Laporan tidak valid: ${validation.reason}`
+    );
+    await fs.rm(workRoot, { recursive: true, force: true }).catch(() => {});
+    return;
+  }
+
+  await appendActivityLine(
+    reportId,
+    `[Hierarki 2 Lolos] Error terbukti valid: ${validation.reason}`
+  );
+
+  // =========================================================================
+  // EKSEKUSI PERBAIKAN: Persiapan Kode, Patching oleh AI, Verifikasi & PR
+  // =========================================================================
+  await appendActivityLine(reportId, `Error layak diperbaiki. Mengunduh basis kode...`);
+  const workdir = path.join(workRoot, 'repo');
   const prompt = await buildPrompt(report, evidence);
   await prisma.report.update({
     where: { id: reportId },
@@ -469,7 +606,7 @@ export async function processViaWrapper(reportId: string): Promise<void> {
   }
   await ensureGitIdentity(workdir, reportId);
   await writeWorkdirGuardrails(workdir);
-  await appendActivityLine(reportId, 'repo siap, menyerahkan ke AI ...');
+  await appendActivityLine(reportId, 'repo siap, menyerahkan perbaikan ke AI ...');
 
   // 3. Sisanya kerjaan AI: fix, verifikasi, git, PR.
   let sessionId: string;

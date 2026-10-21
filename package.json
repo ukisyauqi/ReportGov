@@ -1,5 +1,5 @@
 {
-  "name": "lapor-web-pemerintah-harness",
+  "name": "reportgov-harness",
   "version": "1.0.0",
   "private": true,
   "scripts": {

@@ -1,9 +1,8 @@
-# LaporWeb.go.id — Web Pelaporan Website Pemerintah + Auto-Fix AI Harness (OpenCode Serve)
+# ReportGov — Web Pelaporan Website Pemerintah + Auto-Fix AI Harness (OpenCode Serve)
 
-Sistem end-to-end tempat masyarakat melaporkan masalah pada website pemerintah (`*.go.id`), lalu **AI (OpenCode) mengerjakan sisanya sampai Pull Request**:
-1. Sistem menyiapkan repo: validasi mapping situs, cek live (`fetch` + Playwright screenshot & `EVIDENCE.md`), clone repo target + guardrails `opencode.json`.
-2. Sistem mengirim SATU instruksi end-to-end (perbaiki kode, verifikasi mandiri, git branch/commit/push, buat PR) ke OpenCode — halaman tracking menampilkan live feed aktivitas AI (`edit ...`, `$ ...`, hingga PR).
-3. AI yang menjalankan semuanya sampai `PR_URL:` terbit; sistem hanya mencatatnya (verifikasi read-only via `gh pr view`).
+Sistem end-to-end tempat masyarakat melaporkan masalah pada website pemerintah (`*.go.id`), dengan **2 Hierarki Validasi Sebelum Perbaikan**:
+1. **Hierarki 1 (Data Repositori)**: Sistem memvalidasi apakah URL situs terdaftar di pemetaan repositori kami (`config/site-to-repo.json` & `config/allowed-repos.txt`). Jika **tidak ada**, laporan langsung **ditolak**. Jika ada, lanjut ke Hierarki 2.
+2. **Hierarki 2 (Simulasi & Pemeriksaan AI)**: Sistem menjalankan simulasi browser headless (Playwright) & HTTP live check, lalu Agen AI Inspector menganalisis kebenaran error. Jika hasil pemeriksaan membuktikan error **tidak terbukti / false positive / teks acak**, laporan **ditolak**. Jika error **benar adanya**, sistem melanjutkan ke perbaikan kode pada basis repositori dan pembuatan Pull Request otomatis.
 
 ---
 
