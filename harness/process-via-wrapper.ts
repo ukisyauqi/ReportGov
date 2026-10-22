@@ -342,7 +342,7 @@ function parseOpenCodeModel(
 }
 
 async function writeWorkdirGuardrails(workdir: string): Promise<void> {
-  // AI mengerjakan SEMUA operasi git sendiri (branch/commit/push/PR).
+  // AI mengerjakan SEMUA operasi git sendiri (clone, branch/commit/push/PR).
   // Pola berbahaya tetap di-deny: force-push, push ke main/master/tags,
   // merge PR, hapus repo/branch, reset --hard, clean paksa, ubah remote,
   // rm -rf, sudo.
@@ -358,6 +358,10 @@ async function writeWorkdirGuardrails(workdir: string): Promise<void> {
         "*.env*": "deny",
       },
       bash: {
+        "git clone*": "allow",
+        "git config*": "allow",
+        "gh repo fork*": "allow",
+        "gh repo view*": "allow",
         "git push --force*": "deny",
         "git push -f*": "deny",
         "git push origin main*": "deny",
@@ -430,36 +434,6 @@ async function runShellCommand(
     const combined =
       `${e.stdout || ""}\n${e.stderr || ""}\n${e.message || ""}`.trim();
     return { ok: false, output: combined };
-  }
-}
-
-async function ensureGitIdentity(
-  workdir: string,
-  reportId: string,
-): Promise<void> {
-  const nameRes = await runShellCommand(
-    "git",
-    ["config", "--get", "user.name"],
-    workdir,
-  );
-  if (!nameRes.ok || !nameRes.output.trim()) {
-    await runShellCommand(
-      "git",
-      ["config", "user.name", "gov-harness-bot"],
-      workdir,
-    );
-  }
-  const emailRes = await runShellCommand(
-    "git",
-    ["config", "--get", "user.email"],
-    workdir,
-  );
-  if (!emailRes.ok || !emailRes.output.trim()) {
-    await runShellCommand(
-      "git",
-      ["config", "user.email", `harness-${reportId}@localhost`],
-      workdir,
-    );
   }
 }
 
@@ -881,34 +855,26 @@ export async function processViaWrapper(reportId: string): Promise<void> {
     `Error layak diperbaiki. Mengunduh basis kode...`,
   );
   const workdir = path.join(workRoot, "repo");
-  const prompt = await buildPrompt(report, evidence);
+  const prompt = await buildPrompt({ ...report, repoUrl }, evidence);
   await prisma.report.update({
     where: { id: reportId },
     data: { prompt },
   });
 
+  // Clone dikerjakan AGEN (Langkah 0 di prompt), bukan oleh kode.
+  // Siapkan workRoot kosong + guardrails sesi, lalu serahkan ke AI.
   await fs.rm(workdir, { recursive: true, force: true });
   await fs.mkdir(workRoot, { recursive: true });
-  const cloneRes = await runShellCommand(
-    "git",
-    ["clone", "--depth", "1", repoUrl, workdir],
-    workRoot,
-  );
-  if (!cloneRes.ok) {
-    await failReport(reportId, workRoot, `gagal clone ${repoUrl}`);
-    return;
-  }
-  await ensureGitIdentity(workdir, reportId);
-  await writeWorkdirGuardrails(workdir);
+  await writeWorkdirGuardrails(workRoot);
   await appendActivityLine(
     reportId,
-    "repo siap, menyerahkan perbaikan ke AI ...",
+    "menyiapkan agen AI (agen akan clone repo dulu, lalu perbaiki) ...",
   );
 
-  // 3. Sisanya kerjaan AI: fix, verifikasi, git, PR.
+  // 3. Sisanya kerjaan AI: clone, fix, verifikasi, git, PR.
   let sessionId: string;
   try {
-    sessionId = await createSession(workdir);
+    sessionId = await createSession(workRoot);
   } catch (err) {
     await failReport(
       reportId,
@@ -922,15 +888,31 @@ export async function processViaWrapper(reportId: string): Promise<void> {
     data: { sessionId },
   });
 
-  const first = await runAiTask(reportId, sessionId, workdir, prompt);
+  const first = await runAiTask(reportId, sessionId, workRoot, prompt);
   if (first.error) {
     await failReport(reportId, workRoot, `AI berhenti: ${first.error}`);
     return;
   }
+  if (/CLONE_FAILED:/i.test(first.reply)) {
+    await failReport(
+      reportId,
+      workRoot,
+      `agen gagal clone ${repoUrl}: ${first.reply.slice(0, 300)}`,
+    );
+    return;
+  }
   // Sukses = PR benar ada di remote (ground truth), bukan sekadar AI menulis
   // `PR_URL:` di balasan. Single attempt: tanpa kontinuasi.
+  // Repo hasil clone agen ada di ./repo; fallback ke workRoot bila beda.
+  let repoDir = workdir;
+  try {
+    const st = await fs.stat(workdir);
+    if (!st.isDirectory()) repoDir = workRoot;
+  } catch {
+    repoDir = workRoot;
+  }
   const prUrl =
-    extractPrUrl(first.reply) || (await findPrByBranch(reportId, workdir));
+    extractPrUrl(first.reply) || (await findPrByBranch(reportId, repoDir));
   if (!prUrl) {
     await failReport(reportId, workRoot, "AI selesai tanpa memberikan URL PR.");
     return;
@@ -940,7 +922,7 @@ export async function processViaWrapper(reportId: string): Promise<void> {
   const viewRes = await runShellCommand(
     "gh",
     ["pr", "view", prUrl, "--json", "url,state"],
-    workdir,
+    repoDir,
   );
   const viewed = tryParseJsonObject(viewRes.output);
   if (!viewRes.ok || !viewed || typeof viewed.url !== "string") {
