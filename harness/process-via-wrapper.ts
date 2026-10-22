@@ -1,16 +1,18 @@
-import 'dotenv/config';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { prisma } from '../src/lib/prisma';
-import { buildPrompt } from './build-prompt';
+import "dotenv/config";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { prisma } from "../src/lib/prisma";
+import { buildPrompt } from "./build-prompt";
 
 const execFileAsync = promisify(execFile);
 
-const WRAPPER_URL = process.env.WRAPPER_URL || 'http://localhost:3001';
+const WRAPPER_URL = process.env.WRAPPER_URL || "http://localhost:3001";
 // Satu tugas end-to-end (fix + verifikasi + git + PR) bisa lama.
-const AI_TASK_TIMEOUT_MS = Number(process.env.AI_TASK_TIMEOUT_MS || 15 * 60 * 1000);
+const AI_TASK_TIMEOUT_MS = Number(
+  process.env.AI_TASK_TIMEOUT_MS || 15 * 60 * 1000,
+);
 const ACTIVITY_POLL_MS = 2500;
 const MAX_CONTINUATIONS = 3;
 
@@ -19,14 +21,17 @@ function sleep(ms: number): Promise<void> {
 }
 
 // Log = murni activity feed OpenCode, satu baris per aktivitas, tanpa timestamp.
-async function appendActivityLine(reportId: string, line: string): Promise<void> {
+async function appendActivityLine(
+  reportId: string,
+  line: string,
+): Promise<void> {
   const clean = line.trim().slice(0, 500);
   if (!clean) return;
   const current = await prisma.report.findUnique({
     where: { id: reportId },
     select: { harnessLog: true },
   });
-  const prev = current?.harnessLog || '';
+  const prev = current?.harnessLog || "";
   const updatedLog = prev ? `${prev}\n${clean}` : clean;
   await prisma.report.update({
     where: { id: reportId },
@@ -35,28 +40,32 @@ async function appendActivityLine(reportId: string, line: string): Promise<void>
 }
 
 export async function resolveAllowedRepo(
-  siteUrl: string
+  siteUrl: string,
 ): Promise<{ ok: true; repoUrl: string } | { ok: false; reason: string }> {
   try {
-    const mapPath = path.join(process.cwd(), 'config', 'site-to-repo.json');
-    const allowlistPath = path.join(process.cwd(), 'config', 'allowed-repos.txt');
+    const mapPath = path.join(process.cwd(), "config", "site-to-repo.json");
+    const allowlistPath = path.join(
+      process.cwd(),
+      "config",
+      "allowed-repos.txt",
+    );
 
     const [mapRaw, allowRaw] = await Promise.all([
-      fs.readFile(mapPath, 'utf-8'),
-      fs.readFile(allowlistPath, 'utf-8'),
+      fs.readFile(mapPath, "utf-8"),
+      fs.readFile(allowlistPath, "utf-8"),
     ]);
 
     const siteMap = JSON.parse(mapRaw) as Record<string, string>;
     const allowedRepos = new Set(
       allowRaw
-        .split('\n')
+        .split("\n")
         .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith('#'))
+        .filter((line) => line.length > 0 && !line.startsWith("#")),
     );
 
     const parsed = new URL(siteUrl);
     const origin = parsed.origin.toLowerCase();
-    const normalizedFull = siteUrl.trim().replace(/\/+$/, '');
+    const normalizedFull = siteUrl.trim().replace(/\/+$/, "");
     const hostname = parsed.hostname.toLowerCase();
 
     let matchedRepo: string | undefined =
@@ -105,15 +114,19 @@ export async function resolveAllowedRepo(
 async function runLiveCheck(
   reportId: string,
   siteUrl: string,
-  workRoot: string
+  workRoot: string,
 ): Promise<string> {
   await fs.mkdir(workRoot, { recursive: true });
-  const artifactsDir = path.join(process.cwd(), 'public', 'artifacts');
+  const artifactsDir = path.join(process.cwd(), "public", "artifacts");
   await fs.mkdir(artifactsDir, { recursive: true });
 
   const screenshotRelPath = `artifacts/${reportId}-live.png`;
-  const screenshotFullPath = path.join(process.cwd(), 'public', screenshotRelPath);
-  const evidencePath = path.join(workRoot, 'EVIDENCE.md');
+  const screenshotFullPath = path.join(
+    process.cwd(),
+    "public",
+    screenshotRelPath,
+  );
+  const evidencePath = path.join(workRoot, "EVIDENCE.md");
 
   const lines: string[] = [];
   lines.push(`- **Target URL**: ${siteUrl}`);
@@ -126,13 +139,13 @@ async function runLiveCheck(
     const timer = setTimeout(() => controller.abort(), 10_000);
     const res = await fetch(siteUrl, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'GovWebHarnessBot/1.0' },
+      headers: { "User-Agent": "GovWebHarnessBot/1.0" },
     });
     clearTimeout(timer);
     const latency = Date.now() - startMs;
     const html = await res.text();
     const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    const pageTitle = titleMatch ? titleMatch[1].trim() : '(tanpa <title>)';
+    const pageTitle = titleMatch ? titleMatch[1].trim() : "(tanpa <title>)";
 
     lines.push(`- **HTTP Status**: ${res.status} ${res.statusText}`);
     lines.push(`- **Waktu Respons**: ${latency} ms`);
@@ -140,35 +153,44 @@ async function runLiveCheck(
   } catch (err) {
     const latency = Date.now() - startMs;
     lines.push(
-      `- **HTTP Status**: GAGAL DIAKSES (${String((err as Error)?.message || err)}) setelah ${latency} ms`
+      `- **HTTP Status**: GAGAL DIAKSES (${String((err as Error)?.message || err)}) setelah ${latency} ms`,
     );
   }
 
   // 2. Playwright Live Check & Screenshot
   try {
-    const { chromium } = await import('playwright');
+    const { chromium } = await import("playwright");
     const browser = await chromium.launch({ headless: true });
     try {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-      const consoleErrors: string[] = [];
-      page.on('console', (msg) => {
-        if (msg.type() === 'error') consoleErrors.push(msg.text());
+      const page = await browser.newPage({
+        viewport: { width: 1280, height: 800 },
       });
-      page.on('pageerror', (err) => {
+      const consoleErrors: string[] = [];
+      page.on("console", (msg) => {
+        if (msg.type() === "error") consoleErrors.push(msg.text());
+      });
+      page.on("pageerror", (err) => {
         consoleErrors.push(err.message);
       });
 
-      await page.goto(siteUrl, { timeout: 12_000, waitUntil: 'domcontentloaded' });
+      await page.goto(siteUrl, {
+        timeout: 12_000,
+        waitUntil: "domcontentloaded",
+      });
       await page.screenshot({ path: screenshotFullPath, fullPage: false });
 
-      lines.push(`- **Screenshot Live**: \`${screenshotRelPath}\` (berhasil diambil)`);
+      lines.push(
+        `- **Screenshot Live**: \`${screenshotRelPath}\` (berhasil diambil)`,
+      );
       if (consoleErrors.length > 0) {
         lines.push(`- **Console Errors (${consoleErrors.length})**:`);
         for (const ce of consoleErrors.slice(0, 5)) {
           lines.push(`  - \`${ce.slice(0, 200)}\``);
         }
       } else {
-        lines.push(`- **Console Errors**: Tidak ditemukan error console saat load awal`);
+        lines.push(
+          `- **Console Errors**: Tidak ditemukan error console saat load awal`,
+        );
       }
     } finally {
       await browser.close();
@@ -176,22 +198,22 @@ async function runLiveCheck(
   } catch (pwErr) {
     lines.push(
       `- **Playwright Check**: Dilewati / tidak dapat mengambil screenshot live (${String(
-        (pwErr as Error)?.message || pwErr
-      ).slice(0, 180)})`
+        (pwErr as Error)?.message || pwErr,
+      ).slice(0, 180)})`,
     );
   }
 
-  const evidenceContent = lines.join('\n');
-  await fs.writeFile(evidencePath, evidenceContent, 'utf-8');
+  const evidenceContent = lines.join("\n");
+  await fs.writeFile(evidencePath, evidenceContent, "utf-8");
   return evidenceContent;
 }
 
 function parseOpenCodeModel(
-  rawModel?: string
+  rawModel?: string,
 ): { providerID: string; id: string } | undefined {
   if (!rawModel || !rawModel.trim()) return undefined;
   const trimmed = rawModel.trim();
-  if (trimmed.startsWith('{')) {
+  if (trimmed.startsWith("{")) {
     try {
       const parsed = JSON.parse(trimmed);
       if (parsed.providerID && parsed.id) {
@@ -201,9 +223,9 @@ function parseOpenCodeModel(
       return undefined;
     }
   }
-  if (trimmed.includes('/')) {
-    const [providerID, ...rest] = trimmed.split('/');
-    const id = rest.join('/');
+  if (trimmed.includes("/")) {
+    const [providerID, ...rest] = trimmed.split("/");
+    const id = rest.join("/");
     if (providerID && id) return { providerID, id };
   }
   return undefined;
@@ -215,55 +237,55 @@ async function writeWorkdirGuardrails(workdir: string): Promise<void> {
   // merge PR, hapus repo/branch, reset --hard, clean paksa, ubah remote,
   // rm -rf, sudo.
   const guardrails: Record<string, unknown> = {
-    $schema: 'https://opencode.ai/config.json',
+    $schema: "https://opencode.ai/config.json",
     permission: {
       read: {
-        '*.env*': 'deny',
-        '.env*': 'deny',
+        "*.env*": "deny",
+        ".env*": "deny",
       },
       edit: {
-        '.env*': 'deny',
-        '*.env*': 'deny',
+        ".env*": "deny",
+        "*.env*": "deny",
       },
       bash: {
-        'git push --force*': 'deny',
-        'git push -f*': 'deny',
-        'git push origin main*': 'deny',
-        'git push origin master*': 'deny',
-        'git push *--tags*': 'deny',
-        'git push *--delete*': 'deny',
-        'git reset --hard*': 'deny',
-        'git branch -D*': 'deny',
-        'git branch --delete --force*': 'deny',
-        'git clean -f*': 'deny',
-        'git remote add*': 'deny',
-        'git remote set-url*': 'deny',
-        'git remote remove*': 'deny',
-        'git remote rename*': 'deny',
-        'gh pr merge*': 'deny',
-        'gh repo delete*': 'deny',
-        'gh repo archive*': 'deny',
-        'gh repo transfer*': 'deny',
-        'rm -rf *': 'deny',
-        'sudo *': 'deny',
-        'git checkout*': 'allow',
-        'git status*': 'allow',
-        'git diff*': 'allow',
-        'git log*': 'allow',
-        'git add*': 'allow',
-        'git commit*': 'allow',
-        'git push*': 'allow',
-        'git ls-remote*': 'allow',
-        'git rev-parse*': 'allow',
-        'git show*': 'allow',
-        'git symbolic-ref*': 'allow',
-        'gh pr create*': 'allow',
-        'gh pr view*': 'allow',
-        'gh pr list*': 'allow',
-        'gh pr status*': 'allow',
-        'gh pr diff*': 'allow',
-        'npm *': 'allow',
-        'npx *': 'allow',
+        "git push --force*": "deny",
+        "git push -f*": "deny",
+        "git push origin main*": "deny",
+        "git push origin master*": "deny",
+        "git push *--tags*": "deny",
+        "git push *--delete*": "deny",
+        "git reset --hard*": "deny",
+        "git branch -D*": "deny",
+        "git branch --delete --force*": "deny",
+        "git clean -f*": "deny",
+        "git remote add*": "deny",
+        "git remote set-url*": "deny",
+        "git remote remove*": "deny",
+        "git remote rename*": "deny",
+        "gh pr merge*": "deny",
+        "gh repo delete*": "deny",
+        "gh repo archive*": "deny",
+        "gh repo transfer*": "deny",
+        "rm -rf *": "deny",
+        "sudo *": "deny",
+        "git checkout*": "allow",
+        "git status*": "allow",
+        "git diff*": "allow",
+        "git log*": "allow",
+        "git add*": "allow",
+        "git commit*": "allow",
+        "git push*": "allow",
+        "git ls-remote*": "allow",
+        "git rev-parse*": "allow",
+        "git show*": "allow",
+        "git symbolic-ref*": "allow",
+        "gh pr create*": "allow",
+        "gh pr view*": "allow",
+        "gh pr list*": "allow",
+        "gh pr status*": "allow",
+        "gh pr diff*": "allow",
+        "npm *": "allow",
+        "npx *": "allow",
       },
     },
   };
@@ -273,9 +295,9 @@ async function writeWorkdirGuardrails(workdir: string): Promise<void> {
   }
 
   await fs.writeFile(
-    path.join(workdir, 'opencode.json'),
+    path.join(workdir, "opencode.json"),
     JSON.stringify(guardrails, null, 2),
-    'utf-8'
+    "utf-8",
   );
 }
 
@@ -283,47 +305,112 @@ async function runShellCommand(
   cmd: string,
   args: string[],
   cwd: string,
-  timeoutMs = 180_000
+  timeoutMs = 180_000,
 ): Promise<{ ok: boolean; output: string }> {
   try {
     const { stdout, stderr } = await execFileAsync(cmd, args, {
       cwd,
       timeout: timeoutMs,
       maxBuffer: 5 * 1024 * 1024,
-      env: { ...process.env, CI: 'true' },
+      env: { ...process.env, CI: "true" },
     });
-    return { ok: true, output: `${stdout || ''}\n${stderr || ''}`.trim() };
+    return { ok: true, output: `${stdout || ""}\n${stderr || ""}`.trim() };
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; message?: string };
-    const combined = `${e.stdout || ''}\n${e.stderr || ''}\n${e.message || ''}`.trim();
+    const combined =
+      `${e.stdout || ""}\n${e.stderr || ""}\n${e.message || ""}`.trim();
     return { ok: false, output: combined };
   }
 }
 
-async function ensureGitIdentity(workdir: string, reportId: string): Promise<void> {
-  const nameRes = await runShellCommand('git', ['config', '--get', 'user.name'], workdir);
+async function ensureGitIdentity(
+  workdir: string,
+  reportId: string,
+): Promise<void> {
+  const nameRes = await runShellCommand(
+    "git",
+    ["config", "--get", "user.name"],
+    workdir,
+  );
   if (!nameRes.ok || !nameRes.output.trim()) {
-    await runShellCommand('git', ['config', 'user.name', 'gov-harness-bot'], workdir);
+    await runShellCommand(
+      "git",
+      ["config", "user.name", "gov-harness-bot"],
+      workdir,
+    );
   }
-  const emailRes = await runShellCommand('git', ['config', '--get', 'user.email'], workdir);
+  const emailRes = await runShellCommand(
+    "git",
+    ["config", "--get", "user.email"],
+    workdir,
+  );
   if (!emailRes.ok || !emailRes.output.trim()) {
     await runShellCommand(
-      'git',
-      ['config', 'user.email', `harness-${reportId}@localhost`],
-      workdir
+      "git",
+      ["config", "user.email", `harness-${reportId}@localhost`],
+      workdir,
     );
   }
 }
 
 function extractPrUrl(text: string): string {
   const m = text.match(/https:\/\/github\.com\/\S+\/pull\/\d+/);
-  if (!m) return '';
-  return m[0].replace(/[),.\]]+$/, '');
+  if (!m) return "";
+  return m[0].replace(/[),.\]]+$/, "");
+}
+
+// Status terminal untuk kegagalan otomatisasi: bukan "ditolak" (laporan
+// tidak layak), melainkan "gagal" (sistem mentok, butuh perhatian manusia).
+// Selalu membersihkan workdir agar /tmp tidak menumpuk.
+async function failReport(
+  reportId: string,
+  workRoot: string,
+  reason: string,
+): Promise<void> {
+  await prisma.report.update({
+    where: { id: reportId },
+    data: { status: "gagal" },
+  });
+  await appendActivityLine(reportId, `[Gagal diproses] ${reason}`);
+  await fs.rm(workRoot, { recursive: true, force: true }).catch(() => {});
+}
+
+// Fallback: AI kadang berhasil push + buka PR tapi tidak menulis URL PR
+// pada balasannya. Cek langsung daftar PR open yang head branch-nya
+// memuat ID laporan.
+async function findPrByBranch(
+  reportId: string,
+  workdir: string,
+): Promise<string> {
+  const listRes = await runShellCommand(
+    "gh",
+    ["pr", "list", "--state", "open", "--json", "url,headRefName"],
+    workdir,
+  );
+  if (!listRes.ok) return "";
+  try {
+    const start = listRes.output.indexOf("[");
+    const end = listRes.output.lastIndexOf("]");
+    if (start < 0 || end <= start) return "";
+    const prs = JSON.parse(listRes.output.slice(start, end + 1)) as Array<{
+      url?: string;
+      headRefName?: string;
+    }>;
+    const match = prs.find(
+      (p) =>
+        typeof p.headRefName === "string" &&
+        p.headRefName.includes(reportId) &&
+        typeof p.url === "string",
+    );
+    return match?.url || "";
+  } catch {
+    return "";
+  }
 }
 
 function tryParseJsonObject(output: string): Record<string, unknown> | null {
-  const start = output.indexOf('{');
-  const end = output.lastIndexOf('}');
+  const start = output.indexOf("{");
+  const end = output.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
   try {
     return JSON.parse(output.slice(start, end + 1)) as Record<string, unknown>;
@@ -334,18 +421,20 @@ function tryParseJsonObject(output: string): Record<string, unknown> | null {
 
 async function createSession(workdir: string): Promise<string> {
   const response = await fetch(`${WRAPPER_URL}/sessions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       directory: workdir,
-      agent: 'build',
+      agent: "build",
       model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
     }),
   });
   const data = (await response.json()) as { id?: string; sessionID?: string };
   const sid = data?.id || data?.sessionID;
   if (!response.ok || !sid) {
-    throw new Error(`Gagal membuat session AI: ${JSON.stringify(data).slice(0, 300)}`);
+    throw new Error(
+      `Gagal membuat session AI: ${JSON.stringify(data).slice(0, 300)}`,
+    );
   }
   return sid;
 }
@@ -353,7 +442,9 @@ async function createSession(workdir: string): Promise<string> {
 type ActivityItem = { key: string; line: string };
 
 async function fetchActivity(sessionId: string): Promise<ActivityItem[]> {
-  const res = await fetch(`${WRAPPER_URL}/sessions/${sessionId}/activity?limit=100`);
+  const res = await fetch(
+    `${WRAPPER_URL}/sessions/${sessionId}/activity?limit=100`,
+  );
   if (!res.ok) return [];
   const data = (await res.json()) as { activity?: ActivityItem[] };
   return Array.isArray(data?.activity) ? data.activity : [];
@@ -364,20 +455,23 @@ async function runAiTask(
   reportId: string,
   sessionId: string,
   workdir: string,
-  text: string
+  text: string,
 ): Promise<{ reply: string; error?: string }> {
   const chatPromise = fetch(`${WRAPPER_URL}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       message: text,
       sessionID: sessionId,
       directory: workdir,
-      agent: 'build',
+      agent: "build",
       model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
       timeoutMs: AI_TASK_TIMEOUT_MS,
     }),
-  }).then(async (r) => ({ ok: r.ok, data: (await r.json()) as Record<string, unknown> }));
+  }).then(async (r) => ({
+    ok: r.ok,
+    data: (await r.json()) as Record<string, unknown>,
+  }));
 
   let settled = false;
   chatPromise
@@ -411,33 +505,41 @@ async function runAiTask(
   try {
     outcome = await chatPromise;
   } catch (e) {
-    return { reply: '', error: String((e as Error)?.message || e) };
+    return { reply: "", error: String((e as Error)?.message || e) };
   }
   if (!outcome.ok) {
     const d = outcome.data || {};
-    return { reply: '', error: `Wrapper: ${String(d.error || '')} ${String(d.detail || d.hint || '')}`.trim() };
+    return {
+      reply: "",
+      error:
+        `Wrapper: ${String(d.error || "")} ${String(d.detail || d.hint || "")}`.trim(),
+    };
   }
-  return { reply: String(outcome.data?.reply || '') };
+  return { reply: String(outcome.data?.reply || "") };
 }
 
 async function validateBugWithAi(
   report: { id: string; siteUrl: string; deskripsi: string },
   evidence: string,
-  workRoot: string
+  workRoot: string,
 ): Promise<{ isValid: boolean; reason: string }> {
-  const cleanDesc = report.deskripsi.replace(/^\[(?:Judul|Kategori):[^\]]+\]\s*/i, '').trim();
+  const cleanDesc = report.deskripsi
+    .replace(/^\[(?:Judul|Kategori):[^\]]+\]\s*/i, "")
+    .trim();
   const words = cleanDesc.split(/\s+/).filter(Boolean);
 
   // 1. Deteksi teks acak / keyboard smash tanpa arti
   const isGibberish =
     cleanDesc.length < 15 ||
     words.length < 2 ||
-    (words.length <= 4 && words.some((w) => w.length > 12 && !/[aeiou]{2,}/i.test(w)));
+    (words.length <= 4 &&
+      words.some((w) => w.length > 12 && !/[aeiou]{2,}/i.test(w)));
 
   if (isGibberish) {
     return {
       isValid: false,
-      reason: 'Deskripsi laporan berupa teks acak atau tidak mendeskripsikan kendala nyata.',
+      reason:
+        "Deskripsi laporan berupa teks acak atau tidak mendeskripsikan kendala nyata.",
     };
   }
 
@@ -445,7 +547,7 @@ async function validateBugWithAi(
   try {
     const valSessionId = await createSession(workRoot);
     const inspectPrompt = `Kamu adalah Quality Assurance & Bug Inspector independen.
-Tugasmu adalah menganalisis apakah laporan kendala website pemerintah ini BENAR ADANYA (Valid Bug) atau TIDAK VALID (False Positive / Spam / Teks Acak / Masalah Tidak Terbukti).
+Tugasmu adalah menganalisis apakah laporan kendala website ini BENAR ADANYA (Valid Bug) atau TIDAK VALID (False Positive / Spam / Teks Acak / Masalah Tidak Terbukti).
 
 Informasi Laporan:
 - Target URL: ${report.siteUrl}
@@ -470,48 +572,63 @@ Format balasan WAJIB berupa JSON saja:
   "reason": "Alasan singkat (1-2 kalimat bahasa Indonesia) mengapa laporan ini valid atau ditolak"
 }`;
 
-    const res = await runAiTask(report.id, valSessionId, workRoot, inspectPrompt);
+    const res = await runAiTask(
+      report.id,
+      valSessionId,
+      workRoot,
+      inspectPrompt,
+    );
     const parsed = tryParseJsonObject(res.reply);
-    if (parsed && typeof parsed.isValid === 'boolean') {
+    if (parsed && typeof parsed.isValid === "boolean") {
       return {
         isValid: parsed.isValid,
         reason: String(
           parsed.reason ||
-            (parsed.isValid ? 'Bug terkonfirmasi valid' : 'Error tidak terbukti / false positive')
+            (parsed.isValid
+              ? "Bug terkonfirmasi valid"
+              : "Error tidak terbukti / false positive"),
         ),
       };
     }
   } catch (err) {
-    console.warn('[validateBugWithAi] Gagal memanggil AI inspector, menggunakan analisis heuristik:', err);
+    console.warn(
+      "[validateBugWithAi] Gagal memanggil AI inspector, menggunakan analisis heuristik:",
+      err,
+    );
   }
 
   // Fallback analisa heuristik jika AI inspector tidak dapat dihubungi:
   const hasLiveError =
-    evidence.includes('GAGAL DIAKSES') ||
+    evidence.includes("GAGAL DIAKSES") ||
     /HTTP Status: [45]\d\d/.test(evidence) ||
     /Console Errors \(\d+\)/.test(evidence);
 
   if (hasLiveError) {
     return {
       isValid: true,
-      reason: 'Simulasi live mendeteksi anomali/error nyata pada halaman target.',
+      reason:
+        "Simulasi live mendeteksi anomali/error nyata pada halaman target.",
     };
   }
 
   const claimsDown =
-    /tidak bisa diakses|website down|halaman tidak muncul|error 404|error 500/i.test(report.deskripsi);
+    /tidak bisa diakses|website down|halaman tidak muncul|error 404|error 500/i.test(
+      report.deskripsi,
+    );
   const isLive200 = /HTTP Status: 200/i.test(evidence);
 
   if (claimsDown && isLive200) {
     return {
       isValid: false,
-      reason: 'Simulasi live menunjukkan website aktif normal (HTTP 200 OK) tanpa error, kendala down tidak terbukti.',
+      reason:
+        "Simulasi live menunjukkan website aktif normal (HTTP 200 OK) tanpa error, kendala down tidak terbukti.",
     };
   }
 
   return {
     isValid: true,
-    reason: 'Laporan memiliki deskripsi kendala yang dapat dianalisis pada basis kode.',
+    reason:
+      "Laporan memiliki deskripsi kendala yang dapat dianalisis pada basis kode.",
   };
 }
 
@@ -524,21 +641,30 @@ export async function processViaWrapper(reportId: string): Promise<void> {
   // Log fresh: hanya activity feed OpenCode.
   await prisma.report.update({
     where: { id: reportId },
-    data: { status: 'diproses-ai', harnessLog: '' },
+    data: { status: "diproses-ai", harnessLog: "" },
   });
-  await appendActivityLine(reportId, `memulai pemrosesan laporan untuk ${report.siteUrl} ...`);
+  await appendActivityLine(
+    reportId,
+    `memulai pemrosesan laporan untuk ${report.siteUrl} ...`,
+  );
 
   // =========================================================================
   // HIERARKI 1: Validasi URL terhadap data repositori sistem
   // =========================================================================
-  await appendActivityLine(reportId, `[Hierarki 1] Memvalidasi URL target pada data sistem...`);
+  await appendActivityLine(
+    reportId,
+    `[Hierarki 1] Memvalidasi URL target pada data sistem...`,
+  );
   const resolved = await resolveAllowedRepo(report.siteUrl);
   if (!resolved.ok) {
     await prisma.report.update({
       where: { id: reportId },
-      data: { status: 'ditolak' },
+      data: { status: "ditolak" },
     });
-    await appendActivityLine(reportId, `[Hierarki 1 Ditolak] ${resolved.reason}`);
+    await appendActivityLine(
+      reportId,
+      `[Hierarki 1 Ditolak] ${resolved.reason}`,
+    );
     return;
   }
 
@@ -549,33 +675,33 @@ export async function processViaWrapper(reportId: string): Promise<void> {
   });
   await appendActivityLine(
     reportId,
-    `[Hierarki 1 Lolos] URL terdaftar pada repositori (${repoUrl}). Melanjutkan ke Hierarki 2...`
+    `[Hierarki 1 Lolos] URL terdaftar pada repositori (${repoUrl}). Melanjutkan ke Hierarki 2...`,
   );
 
   // =========================================================================
   // HIERARKI 2: Simulasi & Pemeriksaan AI atas Kebenaran Error
   // =========================================================================
-  const workRoot = path.join('/tmp', `harness-${reportId}`);
+  const workRoot = path.join("/tmp", `harness-${reportId}`);
   await appendActivityLine(
     reportId,
-    `[Hierarki 2] Menjalankan simulasi browser & pemeriksaan live ke ${report.siteUrl}...`
+    `[Hierarki 2] Menjalankan simulasi browser & pemeriksaan live ke ${report.siteUrl}...`,
   );
   const evidence = await runLiveCheck(reportId, report.siteUrl, workRoot);
 
   await appendActivityLine(
     reportId,
-    `[Hierarki 2] Agen AI memeriksa apakah error benar adanya...`
+    `[Hierarki 2] Agen AI memeriksa apakah error benar adanya...`,
   );
   const validation = await validateBugWithAi(report, evidence, workRoot);
 
   if (!validation.isValid) {
     await prisma.report.update({
       where: { id: reportId },
-      data: { status: 'ditolak' },
+      data: { status: "ditolak" },
     });
     await appendActivityLine(
       reportId,
-      `[Hierarki 2 Ditolak] Laporan tidak valid: ${validation.reason}`
+      `[Hierarki 2 Ditolak] Laporan tidak valid: ${validation.reason}`,
     );
     await fs.rm(workRoot, { recursive: true, force: true }).catch(() => {});
     return;
@@ -583,14 +709,17 @@ export async function processViaWrapper(reportId: string): Promise<void> {
 
   await appendActivityLine(
     reportId,
-    `[Hierarki 2 Lolos] Error terbukti valid: ${validation.reason}`
+    `[Hierarki 2 Lolos] Error terbukti valid: ${validation.reason}`,
   );
 
   // =========================================================================
   // EKSEKUSI PERBAIKAN: Persiapan Kode, Patching oleh AI, Verifikasi & PR
   // =========================================================================
-  await appendActivityLine(reportId, `Error layak diperbaiki. Mengunduh basis kode...`);
-  const workdir = path.join(workRoot, 'repo');
+  await appendActivityLine(
+    reportId,
+    `Error layak diperbaiki. Mengunduh basis kode...`,
+  );
+  const workdir = path.join(workRoot, "repo");
   const prompt = await buildPrompt(report, evidence);
   await prisma.report.update({
     where: { id: reportId },
@@ -599,21 +728,32 @@ export async function processViaWrapper(reportId: string): Promise<void> {
 
   await fs.rm(workdir, { recursive: true, force: true });
   await fs.mkdir(workRoot, { recursive: true });
-  const cloneRes = await runShellCommand('git', ['clone', '--depth', '1', repoUrl, workdir], workRoot);
+  const cloneRes = await runShellCommand(
+    "git",
+    ["clone", "--depth", "1", repoUrl, workdir],
+    workRoot,
+  );
   if (!cloneRes.ok) {
-    await appendActivityLine(reportId, `gagal clone ${repoUrl}`);
+    await failReport(reportId, workRoot, `gagal clone ${repoUrl}`);
     return;
   }
   await ensureGitIdentity(workdir, reportId);
   await writeWorkdirGuardrails(workdir);
-  await appendActivityLine(reportId, 'repo siap, menyerahkan perbaikan ke AI ...');
+  await appendActivityLine(
+    reportId,
+    "repo siap, menyerahkan perbaikan ke AI ...",
+  );
 
   // 3. Sisanya kerjaan AI: fix, verifikasi, git, PR.
   let sessionId: string;
   try {
     sessionId = await createSession(workdir);
   } catch (err) {
-    await appendActivityLine(reportId, `gagal membuat sesi AI: ${String((err as Error)?.message || err)}`);
+    await failReport(
+      reportId,
+      workRoot,
+      `gagal membuat sesi AI: ${String((err as Error)?.message || err)}`,
+    );
     return;
   }
   await prisma.report.update({
@@ -623,7 +763,7 @@ export async function processViaWrapper(reportId: string): Promise<void> {
 
   const first = await runAiTask(reportId, sessionId, workdir, prompt);
   if (first.error) {
-    await appendActivityLine(reportId, `AI berhenti: ${first.error}`);
+    await failReport(reportId, workRoot, `AI berhenti: ${first.error}`);
     return;
   }
   let prUrl = extractPrUrl(first.reply);
@@ -632,25 +772,46 @@ export async function processViaWrapper(reportId: string): Promise<void> {
       reportId,
       sessionId,
       workdir,
-      'Lanjutkan pekerjaan sampai Pull Request terbuat, lalu balas dengan baris `PR_URL: <url>`. ' +
-        'Jika ada yang menghalangimu dan tidak bisa kamu atasi sendiri, jelaskan singkat apa penghalangnya lalu berhenti.'
+      "Lanjutkan pekerjaan sampai Pull Request terbuat, lalu balas dengan baris `PR_URL: <url>`. " +
+        "Jika ada yang menghalangimu dan tidak bisa kamu atasi sendiri, jelaskan singkat apa penghalangnya lalu berhenti.",
     );
     if (cont.error) {
-      await appendActivityLine(reportId, `AI berhenti: ${cont.error}`);
+      await failReport(reportId, workRoot, `AI berhenti: ${cont.error}`);
       return;
     }
     prUrl = extractPrUrl(cont.reply);
   }
   if (!prUrl) {
-    await appendActivityLine(reportId, 'AI selesai tanpa memberikan URL PR.');
+    await appendActivityLine(
+      reportId,
+      "URL PR tidak ditemukan pada balasan AI, memeriksa daftar PR di repositori...",
+    );
+    prUrl = await findPrByBranch(reportId, workdir);
+    if (prUrl) {
+      await appendActivityLine(
+        reportId,
+        `PR terdeteksi pada repositori: ${prUrl}`,
+      );
+    }
+  }
+  if (!prUrl) {
+    await failReport(reportId, workRoot, "AI selesai tanpa memberikan URL PR.");
     return;
   }
 
   // 4. Verifikasi read-only + catat. Bukan operasi git — hanya membaca status PR.
-  const viewRes = await runShellCommand('gh', ['pr', 'view', prUrl, '--json', 'url,state'], workdir);
+  const viewRes = await runShellCommand(
+    "gh",
+    ["pr", "view", prUrl, "--json", "url,state"],
+    workdir,
+  );
   const viewed = tryParseJsonObject(viewRes.output);
-  if (!viewRes.ok || !viewed || typeof viewed.url !== 'string') {
-    await appendActivityLine(reportId, `URL PR tidak terverifikasi: ${prUrl}`);
+  if (!viewRes.ok || !viewed || typeof viewed.url !== "string") {
+    await failReport(
+      reportId,
+      workRoot,
+      `URL PR tidak terverifikasi: ${prUrl}`,
+    );
     return;
   }
 
@@ -658,7 +819,7 @@ export async function processViaWrapper(reportId: string): Promise<void> {
     where: { id: reportId },
     data: {
       prUrl,
-      status: 'pr-dibuat',
+      status: "pr-dibuat",
     },
   });
 
@@ -668,15 +829,15 @@ export async function processViaWrapper(reportId: string): Promise<void> {
 
 // CLI runner: `npm run harness -- --reportId=<id>`
 const isMainModule =
-  typeof process !== 'undefined' &&
+  typeof process !== "undefined" &&
   process.argv[1] &&
-  process.argv[1].includes('process-via-wrapper');
+  process.argv[1].includes("process-via-wrapper");
 
 if (isMainModule) {
-  const arg = process.argv.find((a) => a.startsWith('--reportId='));
-  const reportId = arg ? arg.split('=')[1] : process.argv[2];
+  const arg = process.argv.find((a) => a.startsWith("--reportId="));
+  const reportId = arg ? arg.split("=")[1] : process.argv[2];
   if (!reportId) {
-    console.error('Gunakan: npm run harness -- --reportId=<ID_REPORT>');
+    console.error("Gunakan: npm run harness -- --reportId=<ID_REPORT>");
     process.exit(1);
   }
   processViaWrapper(reportId)

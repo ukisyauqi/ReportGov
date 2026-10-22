@@ -6,6 +6,7 @@ export const STATUS_LIST = [
   'pr-dibuat',
   'selesai',
   'ditolak',
+  'gagal',
 ] as const;
 
 const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024; // 5MB

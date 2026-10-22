@@ -15,7 +15,7 @@ const STATUS_STYLES: Record<
     dotClass: "bg-brand-600 animate-pulse-dot",
   },
   "pr-dibuat": {
-    label: "PR Dibuat",
+    label: "Berhasil",
     className: "bg-emerald-50 text-emerald-800 border-emerald-200",
     dotClass: "bg-emerald-500",
   },
@@ -28,6 +28,11 @@ const STATUS_STYLES: Record<
     label: "Ditolak",
     className: "bg-stone-100 text-stone-600 border-stone-200",
     dotClass: "bg-stone-400",
+  },
+  gagal: {
+    label: "Gagal diproses",
+    className: "bg-rose-50 text-rose-700 border-rose-200",
+    dotClass: "bg-rose-500",
   },
 };
 

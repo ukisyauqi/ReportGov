@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { StatusBadge } from '@/components/StatusBadge';
-import { ThanksPanel } from '@/components/lapor-ui';
+import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { StatusBadge } from "@/components/StatusBadge";
+import { ThanksPanel } from "@/components/lapor-ui";
 
 interface ReportDetail {
   id: string;
@@ -22,11 +22,11 @@ interface ReportDetail {
   updatedAt: string;
 }
 
-const PROCESSING = new Set(['baru', 'diproses-ai']);
+const PROCESSING = new Set(["baru", "diproses-ai"]);
 
 export default function LaporTrackingPage() {
   const params = useParams<{ id: string }>();
-  const reportId = params?.id || '';
+  const reportId = params?.id || "";
 
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,11 +37,11 @@ export default function LaporTrackingPage() {
     if (!reportId) return;
     try {
       const res = await fetch(`/api/reports/${reportId}`, {
-        cache: 'no-store',
+        cache: "no-store",
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Laporan tidak ditemukan');
+        setError(data.error || "Laporan tidak ditemukan");
         setLoading(false);
         return;
       }
@@ -69,7 +69,9 @@ export default function LaporTrackingPage() {
     return (
       <div className="bg-white rounded-3xl border border-line shadow-card p-12 text-center">
         <div className="w-8 h-8 border-[3px] border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm text-ink-soft">Memuat detail laporan #{reportId}...</p>
+        <p className="text-sm text-ink-soft">
+          Memuat detail laporan #{reportId}...
+        </p>
       </div>
     );
   }
@@ -93,8 +95,11 @@ export default function LaporTrackingPage() {
 
   const done = !PROCESSING.has(report.status);
   const reportNo = `#WBP-${new Date(report.createdAt).getFullYear()}${String(
-    new Date(report.createdAt).getMonth() + 1
-  ).padStart(2, '0')}${String(new Date(report.createdAt).getDate()).padStart(2, '0')}-${report.id.slice(-6).toUpperCase()}`;
+    new Date(report.createdAt).getMonth() + 1,
+  ).padStart(
+    2,
+    "0",
+  )}${String(new Date(report.createdAt).getDate()).padStart(2, "0")}-${report.id.slice(-6).toUpperCase()}`;
 
   return (
     <div className="space-y-5">
@@ -105,12 +110,23 @@ export default function LaporTrackingPage() {
             <div className="flex items-start gap-4">
               <span
                 className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 text-white text-xl font-extrabold ${
-                  done ? 'bg-brand-600 shadow-pop' : 'bg-ink'
+                  done ? "bg-brand-600 shadow-pop" : "bg-ink"
                 }`}
               >
                 {done ? (
-                  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden>
-                    <path d="M4 12.5l5 5L20 6.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                    aria-hidden
+                  >
+                    <path
+                      d="M4 12.5l5 5L20 6.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 ) : (
                   <span className="w-5 h-5 border-[3px] border-white border-t-transparent rounded-full animate-spin" />
@@ -118,12 +134,14 @@ export default function LaporTrackingPage() {
               </span>
               <div>
                 <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-ink">
-                  {done ? 'Laporan Anda telah terkirim!' : 'Laporan Anda sedang diproses...'}
+                  {done
+                    ? "Laporan Anda telah terkirim!"
+                    : "Laporan Anda sedang diproses..."}
                 </h1>
                 <p className="text-[12px] text-ink-soft mt-1 leading-relaxed">
                   {done
-                    ? 'Terima kasih, laporan Anda sudah berhasil dikirim. Kami akan meninjau dan menindaklanjuti pengaduan ini secepatnya.'
-                    : 'Laporan Anda sudah diterima dan sedang dicek otomatis oleh AI harness. Halaman ini akan diperbarui secara langsung.'}
+                    ? "Terima kasih, laporan Anda sudah berhasil dikirim. Kami akan meninjau dan menindaklanjuti pengaduan ini secepatnya."
+                    : "Laporan Anda sudah diterima dan sedang dicek otomatis oleh AI harness. Halaman ini akan diperbarui secara langsung."}
                 </p>
               </div>
             </div>
@@ -146,12 +164,26 @@ export default function LaporTrackingPage() {
                     aria-label="Salin ID laporan"
                     className="text-ink-faint hover:text-brand-700 transition shrink-0"
                   >
-                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      aria-hidden
+                    >
                       <rect x="9" y="9" width="12" height="12" rx="2" />
-                      <path d="M5 15V5a2 2 0 0 1 2-2h10" strokeLinecap="round" />
+                      <path
+                        d="M5 15V5a2 2 0 0 1 2-2h10"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   </button>
-                  {copied && <span className="text-[10px] font-bold text-emerald-600">Disalin!</span>}
+                  {copied && (
+                    <span className="text-[10px] font-bold text-emerald-600">
+                      Disalin!
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex-1 px-4 py-3.5">
@@ -165,15 +197,15 @@ export default function LaporTrackingPage() {
                   Tanggal
                 </p>
                 <p className="text-[13px] font-bold text-ink">
-                  {new Date(report.createdAt).toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
+                  {new Date(report.createdAt).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
                   })}
-                  {', '}
-                  {new Date(report.createdAt).toLocaleTimeString('id-ID', {
-                    hour: '2-digit',
-                    minute: '2-digit',
+                  {", "}
+                  {new Date(report.createdAt).toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
                   })}
                 </p>
               </div>
@@ -184,7 +216,12 @@ export default function LaporTrackingPage() {
                 href="/"
                 className="inline-flex items-center gap-2 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-[13px] font-bold px-5 py-2.5 shadow-pop transition"
               >
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor" aria-hidden>
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-4 h-4"
+                  fill="currentColor"
+                  aria-hidden
+                >
                   <path d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3z" />
                 </svg>
                 Kembali ke Beranda
@@ -216,18 +253,24 @@ export default function LaporTrackingPage() {
 
       {/* Detail laporan */}
       <div className="bg-white rounded-3xl border border-line shadow-card p-6 sm:p-8">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-faint">
+        <h2 className="text-base font-extrabold text-ink tracking-tight">
           Detail Laporan
-        </p>
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        </h2>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
-            <span className="text-[11px] text-ink-faint block mb-0.5">Judul Laporan</span>
+            <span className="text-[11px] text-ink-faint block mb-0.5">
+              Judul Laporan
+            </span>
             <span className="font-bold text-ink text-[13px]">
-              {report.deskripsi.match(/^\[(?:Judul|Kategori):\s*([^\]]+)\]/i)?.[1] || 'Laporan Masalah'}
+              {report.deskripsi.match(
+                /^\[(?:Judul|Kategori):\s*([^\]]+)\]/i,
+              )?.[1] || "Laporan Masalah"}
             </span>
           </div>
           <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
-            <span className="text-[11px] text-ink-faint block mb-0.5">URL Website</span>
+            <span className="text-[11px] text-ink-faint block mb-0.5">
+              URL Website
+            </span>
             <a
               href={report.siteUrl}
               target="_blank"
@@ -237,16 +280,15 @@ export default function LaporTrackingPage() {
               {report.siteUrl}
             </a>
           </div>
-          <div className="rounded-2xl bg-cream/70 border border-line/70 p-4">
-            <span className="text-[11px] text-ink-faint block mb-0.5">OpenCode Session ID</span>
-            <span className="font-mono text-[12px] font-bold text-ink break-all">
-              {report.sessionId || 'Menunggu sesi OpenCode...'}
-            </span>
-          </div>
         </div>
-        <pre className="mt-3 whitespace-pre-wrap font-sans text-[13px] text-ink-soft bg-cream/70 rounded-2xl p-4 border border-line/70 leading-relaxed">
-          {report.deskripsi.replace(/^\[(?:Judul|Kategori):[^\]]+\]\s*/i, '')}
-        </pre>
+        <div className="mt-3 rounded-2xl bg-cream/70 border border-line/70 p-4">
+          <span className="text-[11px] text-ink-faint block mb-0.5">
+            Deskripsi Laporan
+          </span>
+          <pre className="whitespace-pre-wrap font-sans text-[13px] text-ink-soft leading-relaxed">
+            {report.deskripsi.replace(/^\[(?:Judul|Kategori):[^\]]+\]\s*/i, "")}
+          </pre>
+        </div>
         {report.screenshot && (
           <div className="mt-3">
             <span className="text-[11px] font-bold text-ink-soft block mb-2">
@@ -260,39 +302,6 @@ export default function LaporTrackingPage() {
             />
           </div>
         )}
-        {report.repoUrl && (
-          <p className="mt-3 text-[11px] text-ink-faint">
-            Target repository:{' '}
-            <code className="px-2 py-0.5 rounded bg-cream-dark text-ink font-mono">
-              {report.repoUrl}
-            </code>
-          </p>
-        )}
-      </div>
-
-      {/* Prompt */}
-      <div className="bg-white rounded-3xl border border-line shadow-card p-6 sm:p-8">
-        <details className="group" open={Boolean(report.prompt)}>
-          <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-extrabold text-ink tracking-tight">
-                Prompt yang dikirim ke OpenCode
-              </h2>
-              <p className="text-[12px] text-ink-faint">
-                Disusun otomatis dari laporan + bukti live check
-              </p>
-            </div>
-            <span className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-cream-dark text-ink-soft group-open:bg-ink group-open:text-white transition shrink-0">
-              Buka / Tutup
-            </span>
-          </summary>
-          <textarea
-            readOnly
-            value={report.prompt || 'Prompt sedang disusun oleh backend harness...'}
-            rows={10}
-            className="mt-4 w-full font-mono text-[11px] bg-ink text-stone-200 rounded-2xl p-4 focus:outline-none"
-          />
-        </details>
       </div>
 
       {/* Live feed */}
@@ -300,10 +309,10 @@ export default function LaporTrackingPage() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-base font-extrabold text-ink tracking-tight">
-              Aktivitas OpenCode
+              Log Aktifitas AI Agent
             </h2>
             <p className="text-[12px] text-ink-faint">
-              Live feed: file yang dibaca AI, perintah yang dijalankan, hingga Pull Request
+              Live feed kegiatan bug fixing oleh AI Agent
             </p>
           </div>
           <button
@@ -315,7 +324,7 @@ export default function LaporTrackingPage() {
           </button>
         </div>
         <pre className="log-scroll w-full font-mono text-[11px] bg-ink text-emerald-300/90 rounded-2xl p-4 overflow-x-auto max-h-[420px] overflow-y-auto whitespace-pre-wrap leading-relaxed">
-          {report.harnessLog || 'Menunggu log pertama dari orchestrator...'}
+          {report.harnessLog || "Menunggu log pertama dari orchestrator..."}
         </pre>
       </div>
     </div>
