@@ -7,52 +7,8 @@ import { isAdminEmail } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory rate limiter: Hanya menerima 1 laporan berhasil per IP selama 1 hari (24 jam)
-const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 jam
-const RATE_LIMIT_MAX = 1; // 1 laporan sukses
-const successfulSubmissionsByIp = new Map<string, number[]>();
-
-function checkRateLimit(ip: string): { allowed: boolean; retryAfterHours?: number } {
-  const now = Date.now();
-  const timestamps = (successfulSubmissionsByIp.get(ip) || []).filter(
-    (t) => now - t < RATE_LIMIT_WINDOW_MS
-  );
-  successfulSubmissionsByIp.set(ip, timestamps);
-
-  if (timestamps.length >= RATE_LIMIT_MAX) {
-    const oldest = timestamps[0];
-    const msRemaining = RATE_LIMIT_WINDOW_MS - (now - oldest);
-    const retryAfterHours = Math.max(1, Math.ceil(msRemaining / (60 * 60 * 1000)));
-    return { allowed: false, retryAfterHours };
-  }
-
-  return { allowed: true };
-}
-
-function recordSuccessfulSubmission(ip: string): void {
-  const now = Date.now();
-  const timestamps = (successfulSubmissionsByIp.get(ip) || []).filter(
-    (t) => now - t < RATE_LIMIT_WINDOW_MS
-  );
-  timestamps.push(now);
-  successfulSubmissionsByIp.set(ip, timestamps);
-}
-
 export async function POST(req: NextRequest) {
   try {
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    const ip = forwardedFor ? forwardedFor.split(',')[0].trim() : '127.0.0.1';
-
-    const limitCheck = checkRateLimit(ip);
-    if (!limitCheck.allowed) {
-      return NextResponse.json(
-        {
-          error: `Batas pengiriman laporan tercapai (maksimal 1 laporan per hari per IP). Anda telah berhasil mengirimkan laporan hari ini. Silakan coba lagi dalam ${limitCheck.retryAfterHours} jam untuk mencegah lonjakan dan spam.`,
-        },
-        { status: 429 }
-      );
-    }
-
     const body = await req.json();
     const parsed = createReportSchema.safeParse(body);
 
@@ -100,9 +56,6 @@ export async function POST(req: NextRequest) {
         status: 'baru',
       },
     });
-
-    // Catat bahwa IP ini berhasil mengirimkan 1 laporan valid (mencegah spam & lonjakan)
-    recordSuccessfulSubmission(ip);
 
     // Trigger otomatis tanpa klik admin (async background execution)
     setImmediate(() => {
