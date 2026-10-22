@@ -1,7 +1,8 @@
 # ReportGov — Web Pelaporan Website Pemerintah + Auto-Fix AI Harness (OpenCode Serve)
 
 Sistem end-to-end tempat masyarakat melaporkan masalah pada website pemerintah (`*.go.id`), dengan **2 Hierarki Validasi Sebelum Perbaikan**:
-1. **Hierarki 1 (Data Repositori)**: Sistem memvalidasi apakah URL situs terdaftar di pemetaan repositori kami (`config/site-to-repo.json` & `config/allowed-repos.txt`). Jika **tidak ada**, laporan langsung **ditolak**. Jika ada, lanjut ke Hierarki 2.
+
+1. **Hierarki 1 (Data Repositori)**: Sistem memvalidasi apakah URL situs terdaftar di database website terdaftar (`RegisteredSite`, dikelola via /admin). Jika **tidak ada**, laporan langsung **ditolak**. Jika ada, lanjut ke Hierarki 2.
 2. **Hierarki 2 (Simulasi & Pemeriksaan AI)**: Sistem menjalankan simulasi browser headless (Playwright) & HTTP live check, lalu Agen AI Inspector menganalisis kebenaran error. Jika hasil pemeriksaan membuktikan error **tidak terbukti / false positive / teks acak**, laporan **ditolak**. Jika error **benar adanya**, sistem melanjutkan ke perbaikan kode pada basis repositori dan pembuatan Pull Request otomatis.
 
 ---
@@ -82,15 +83,14 @@ curl http://localhost:3001/sessions/<sessionId>/activity?limit=100
 
 ---
 
-## Menambahkan Mapping Website & Repo Allowlist
+## Menambahkan Website & Repo Terdaftar
 
-1. Tambahkan pasangan URL website pemerintah dan repo GitHub di `config/site-to-repo.json`:
-   ```json
-   {
-     "https://layanan.kominfo.go.id": "https://github.com/pemerintah-id/portal-layanan-kominfo.git"
-   }
-   ```
-2. Daftarkan URL repo tersebut ke dalam `config/allowed-repos.txt`.
+Sumber kebenaran tunggal: tabel database `RegisteredSite`.
+Kelola via halaman **/admin → tab "Website terdaftar"** (tambah / ubah / nonaktifkan / hapus).
+Laporan dengan URL di luar daftar ini otomatis **ditolak** (Hierarki 1).
+
+> File lama `config/site-to-repo.json` & `config/allowed-repos.txt` hanya fallback
+> baca bila tabel DB kosong (deprecated, untuk migrasi awal).
 
 ---
 
@@ -108,5 +108,3 @@ npm run harness -- --reportId=seed-dukcapil-broken-link
 
 - **Catatan Sumber dan AI**: Lihat dokumen lengkap di [CATATAN_SUMBER_DAN_AI.md](file:///d:/test/new/ReportGov/CATATAN_SUMBER_DAN_AI.md) (mencakup Model, Tools, API, Dataset, Library, Lisensi, Komponen Terdahulu, dan Penggunaan AI dalam Pengembangan).
 - **Bukti Pengujian**: Lihat dokumen lengkap di [BUKTI_PENGUJIAN.md](file:///d:/test/new/ReportGov/BUKTI_PENGUJIAN.md) (mencakup Skenario, Masukan, Hasil Aktual, Kendala Teknis, dan Langkah Pengawasan Manusia).
-
-
