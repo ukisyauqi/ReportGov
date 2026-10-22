@@ -101,3 +101,12 @@ Meskipun seluruh laporan diproses otomatis saat submit (`POST /api/reports`), An
 ```sh
 npm run harness -- --reportId=seed-dukcapil-broken-link
 ```
+
+---
+
+## Luaran Wajib & Dokumentasi Terkait
+
+- **Catatan Sumber dan AI**: Lihat dokumen lengkap di [CATATAN_SUMBER_DAN_AI.md](file:///d:/test/new/ReportGov/CATATAN_SUMBER_DAN_AI.md) (mencakup Model, Tools, API, Dataset, Library, Lisensi, Komponen Terdahulu, dan Penggunaan AI dalam Pengembangan).
+- **Bukti Pengujian**: Lihat dokumen lengkap di [BUKTI_PENGUJIAN.md](file:///d:/test/new/ReportGov/BUKTI_PENGUJIAN.md) (mencakup Skenario, Masukan, Hasil Aktual, Kendala Teknis, dan Langkah Pengawasan Manusia).
+
+
