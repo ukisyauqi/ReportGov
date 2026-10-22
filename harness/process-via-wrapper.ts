@@ -14,10 +14,39 @@ const AI_TASK_TIMEOUT_MS = Number(
   process.env.AI_TASK_TIMEOUT_MS || 15 * 60 * 1000,
 );
 const ACTIVITY_POLL_MS = 2500;
+// Batas waktu Hierarki 2 agar log tidak stuck beku selamanya.
+const LIVE_CHECK_TIMEOUT_MS = Number(
+  process.env.LIVE_CHECK_TIMEOUT_MS || 60_000,
+);
+const VALIDATE_TIMEOUT_MS = Number(
+  process.env.VALIDATE_TIMEOUT_MS || 180_000,
+);
+const WRAPPER_CALL_TIMEOUT_MS = Number(
+  process.env.OPENCODE_WAIT_TIMEOUT_MS || 120_000,
+);
 // Single attempt: 1x runAiTask, tanpa kontinuasi / retry.
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label} timeout setelah ${ms} ms`)),
+      ms,
+    );
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // Log = murni activity feed OpenCode, satu baris per aktivitas, tanpa timestamp.
@@ -148,96 +177,145 @@ async function runLiveCheck(
   siteUrl: string,
   workRoot: string,
 ): Promise<string> {
-  await fs.mkdir(workRoot, { recursive: true });
-  const artifactsDir = path.join(process.cwd(), "public", "artifacts");
-  await fs.mkdir(artifactsDir, { recursive: true });
-
-  const screenshotRelPath = `artifacts/${reportId}-live.png`;
-  const screenshotFullPath = path.join(
-    process.cwd(),
-    "public",
-    screenshotRelPath,
-  );
-  const evidencePath = path.join(workRoot, "EVIDENCE.md");
-
-  const lines: string[] = [];
-  lines.push(`- **Target URL**: ${siteUrl}`);
-  lines.push(`- **Waktu Pengecekan**: ${new Date().toISOString()}`);
-
-  // 1. HTTP Fetch Check
-  const startMs = Date.now();
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    const res = await fetch(siteUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": "GovWebHarnessBot/1.0" },
-    });
-    clearTimeout(timer);
-    const latency = Date.now() - startMs;
-    const html = await res.text();
-    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    const pageTitle = titleMatch ? titleMatch[1].trim() : "(tanpa <title>)";
-
-    lines.push(`- **HTTP Status**: ${res.status} ${res.statusText}`);
-    lines.push(`- **Waktu Respons**: ${latency} ms`);
-    lines.push(`- **Judul Halaman**: ${pageTitle}`);
-  } catch (err) {
-    const latency = Date.now() - startMs;
-    lines.push(
-      `- **HTTP Status**: GAGAL DIAKSES (${String((err as Error)?.message || err)}) setelah ${latency} ms`,
-    );
-  }
-
-  // 2. Playwright Live Check & Screenshot
-  try {
-    const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: true });
+  const inner = async (): Promise<string> => {
     try {
-      const page = await browser.newPage({
-        viewport: { width: 1280, height: 800 },
+      await fs.mkdir(workRoot, { recursive: true });
+    } catch {
+      // /tmp seharusnya selalu writable; abaikan bila gagal.
+    }
+    // Screenshot utama ke workRoot (/tmp, selalu writable).
+    // Mirror ke public/artifacts bersifat best-effort (Cloud Run read-only).
+    const tmpScreenshotPath = path.join(workRoot, `${reportId}-live.png`);
+    let screenshotRelPath = `artifacts/${reportId}-live.png`;
+    let screenshotFullPath = tmpScreenshotPath;
+    try {
+      const artifactsDir = path.join(process.cwd(), "public", "artifacts");
+      await fs.mkdir(artifactsDir, { recursive: true });
+      const candidate = path.join(process.cwd(), "public", screenshotRelPath);
+      // Uji tulis: jika public/ read-only, tetap pakai /tmp.
+      await fs.writeFile(candidate + ".writetest", "ok").catch(() => {
+        throw new Error("public not writable");
       });
-      const consoleErrors: string[] = [];
-      page.on("console", (msg) => {
-        if (msg.type() === "error") consoleErrors.push(msg.text());
-      });
-      page.on("pageerror", (err) => {
-        consoleErrors.push(err.message);
-      });
+      await fs.rm(candidate + ".writetest", { force: true }).catch(() => {});
+      screenshotFullPath = candidate;
+    } catch {
+      screenshotRelPath = `tmp-harness-${reportId}/${reportId}-live.png (hanya di /tmp, tidak dipublikasi)`;
+      screenshotFullPath = tmpScreenshotPath;
+    }
+    const evidencePath = path.join(workRoot, "EVIDENCE.md");
 
-      await page.goto(siteUrl, {
-        timeout: 12_000,
-        waitUntil: "domcontentloaded",
-      });
-      await page.screenshot({ path: screenshotFullPath, fullPage: false });
+    const lines: string[] = [];
+    lines.push(`- **Target URL**: ${siteUrl}`);
+    lines.push(`- **Waktu Pengecekan**: ${new Date().toISOString()}`);
 
+    // 1. HTTP Fetch Check (timeout 10s + batasi body 500KB agar tidak hang)
+    const startMs = Date.now();
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const res = await fetch(siteUrl, {
+          signal: controller.signal,
+          headers: { "User-Agent": "GovWebHarnessBot/1.0" },
+        });
+        const latency = Date.now() - startMs;
+        // Batasi body agar target streaming tak membuat hang/OOM.
+        const buf = Buffer.from(await res.arrayBuffer());
+        const html = buf.slice(0, 500_000).toString("utf-8");
+        const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        const pageTitle = titleMatch ? titleMatch[1].trim() : "(tanpa <title>)";
+
+        lines.push(`- **HTTP Status**: ${res.status} ${res.statusText}`);
+        lines.push(`- **Waktu Respons**: ${latency} ms`);
+        lines.push(`- **Judul Halaman**: ${pageTitle}`);
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
+      const latency = Date.now() - startMs;
       lines.push(
-        `- **Screenshot Live**: \`${screenshotRelPath}\` (berhasil diambil)`,
+        `- **HTTP Status**: GAGAL DIAKSES (${String((err as Error)?.message || err)}) setelah ${latency} ms`,
       );
-      if (consoleErrors.length > 0) {
-        lines.push(`- **Console Errors (${consoleErrors.length})**:`);
-        for (const ce of consoleErrors.slice(0, 5)) {
-          lines.push(`  - \`${ce.slice(0, 200)}\``);
-        }
-      } else {
+    }
+
+    // 2. Playwright Live Check & Screenshot (wajib --no-sandbox di Docker/Cloud Run)
+    try {
+      const { chromium } = await import("playwright");
+      const browser = await chromium.launch({
+        headless: true,
+        timeout: 30_000,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+      try {
+        const page = await browser.newPage({
+          viewport: { width: 1280, height: 800 },
+        });
+        const consoleErrors: string[] = [];
+        page.on("console", (msg) => {
+          if (msg.type() === "error") consoleErrors.push(msg.text());
+        });
+        page.on("pageerror", (err) => {
+          consoleErrors.push(err.message);
+        });
+
+        await page.goto(siteUrl, {
+          timeout: 12_000,
+          waitUntil: "domcontentloaded",
+        });
+        await page.screenshot({
+          path: screenshotFullPath,
+          fullPage: false,
+          timeout: 15_000,
+        });
+
         lines.push(
-          `- **Console Errors**: Tidak ditemukan error console saat load awal`,
+          `- **Screenshot Live**: \`${screenshotRelPath}\` (berhasil diambil)`,
+        );
+        if (consoleErrors.length > 0) {
+          lines.push(`- **Console Errors (${consoleErrors.length})**:`);
+          for (const ce of consoleErrors.slice(0, 5)) {
+            lines.push(`  - \`${ce.slice(0, 200)}\``);
+          }
+        } else {
+          lines.push(
+            `- **Console Errors**: Tidak ditemukan error console saat load awal`,
+          );
+        }
+        await page.close().catch(() => {});
+      } finally {
+        // Jangan hang selamanya saat close di container.
+        await withTimeout(browser.close(), 10_000, "browser.close").catch(
+          () => {},
         );
       }
-    } finally {
-      await browser.close();
+    } catch (pwErr) {
+      lines.push(
+        `- **Playwright Check**: Dilewati / tidak dapat mengambil screenshot live (${String(
+          (pwErr as Error)?.message || pwErr,
+        ).slice(0, 180)})`,
+      );
     }
-  } catch (pwErr) {
-    lines.push(
-      `- **Playwright Check**: Dilewati / tidak dapat mengambil screenshot live (${String(
-        (pwErr as Error)?.message || pwErr,
-      ).slice(0, 180)})`,
-    );
-  }
 
-  const evidenceContent = lines.join("\n");
-  await fs.writeFile(evidencePath, evidenceContent, "utf-8");
-  return evidenceContent;
+    const evidenceContent = lines.join("\n");
+    try {
+      await fs.writeFile(evidencePath, evidenceContent, "utf-8");
+    } catch {
+      // workRoot tak writable: kembalikan evidence tanpa persist.
+    }
+    return evidenceContent;
+  };
+
+  // Timeout global: runLiveCheck tidak boleh menggantung selamanya.
+  try {
+    return await withTimeout(inner(), LIVE_CHECK_TIMEOUT_MS, "runLiveCheck");
+  } catch (err) {
+    return [
+      `- **Target URL**: ${siteUrl}`,
+      `- **Waktu Pengecekan**: ${new Date().toISOString()}`,
+      `- **HTTP Status**: TIDAK DIKETAHUI (live check timeout/gagal: ${String((err as Error)?.message || err).slice(0, 180)})`,
+      `- **Playwright Check**: Dilewati karena timeout live check`,
+    ].join("\n");
+  }
 }
 
 function parseOpenCodeModel(
@@ -452,34 +530,53 @@ function tryParseJsonObject(output: string): Record<string, unknown> | null {
 }
 
 async function createSession(workdir: string): Promise<string> {
-  const response = await fetch(`${WRAPPER_URL}/sessions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      directory: workdir,
-      agent: "build",
-      model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
-    }),
-  });
-  const data = (await response.json()) as { id?: string; sessionID?: string };
-  const sid = data?.id || data?.sessionID;
-  if (!response.ok || !sid) {
-    throw new Error(
-      `Gagal membuat session AI: ${JSON.stringify(data).slice(0, 300)}`,
-    );
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WRAPPER_CALL_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${WRAPPER_URL}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        directory: workdir,
+        agent: "build",
+        model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
+      }),
+      signal: controller.signal,
+    });
+    const data = (await response.json()) as { id?: string; sessionID?: string };
+    const sid = data?.id || data?.sessionID;
+    if (!response.ok || !sid) {
+      throw new Error(
+        `Gagal membuat session AI: ${JSON.stringify(data).slice(0, 300)}`,
+      );
+    }
+    return sid;
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") {
+      throw new Error(
+        `Gagal membuat session AI: timeout ${WRAPPER_CALL_TIMEOUT_MS} ms ke wrapper ${WRAPPER_URL}`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return sid;
 }
 
 type ActivityItem = { key: string; line: string };
 
 async function fetchActivity(sessionId: string): Promise<ActivityItem[]> {
-  const res = await fetch(
-    `${WRAPPER_URL}/sessions/${sessionId}/activity?limit=100`,
-  );
-  if (!res.ok) return [];
-  const data = (await res.json()) as { activity?: ActivityItem[] };
-  return Array.isArray(data?.activity) ? data.activity : [];
+  try {
+    const res = await fetch(
+      `${WRAPPER_URL}/sessions/${sessionId}/activity?limit=100`,
+      { signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as { activity?: ActivityItem[] };
+    return Array.isArray(data?.activity) ? data.activity : [];
+  } catch {
+    return [];
+  }
 }
 
 // Dedup global per (report, session): runAiTask dipanggil 1x untuk validasi +
@@ -495,6 +592,9 @@ async function runAiTask(
   workdir: string,
   text: string,
 ): Promise<{ reply: string; error?: string }> {
+  // Fetch wrapper wajib punya timeout sendiri; sebelumnya tanpa AbortSignal
+  // sehingga wrapper hang = while(!settled) polling selamanya.
+  const chatTimeoutMs = AI_TASK_TIMEOUT_MS + 60_000;
   const chatPromise = fetch(`${WRAPPER_URL}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -506,6 +606,7 @@ async function runAiTask(
       model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
       timeoutMs: AI_TASK_TIMEOUT_MS,
     }),
+    signal: AbortSignal.timeout(chatTimeoutMs),
   }).then(async (r) => ({
     ok: r.ok,
     data: (await r.json()) as Record<string, unknown>,
@@ -536,7 +637,10 @@ async function runAiTask(
     }
   };
 
+  // Batas polling agar tidak loop selamanya bila wrapper hang.
+  const pollDeadline = Date.now() + chatTimeoutMs;
   while (!settled) {
+    if (Date.now() > pollDeadline) break;
     await sleep(ACTIVITY_POLL_MS);
     await drain();
   }
@@ -674,66 +778,82 @@ Format balasan WAJIB berupa JSON saja:
 }
 
 export async function processViaWrapper(reportId: string): Promise<void> {
-  const report = await prisma.report.findUnique({ where: { id: reportId } });
-  if (!report) {
-    throw new Error(`Report ${reportId} tidak ditemukan`);
-  }
+  const workRootFallback = path.join("/tmp", `harness-${reportId}`);
+  try {
+    const report = await prisma.report.findUnique({ where: { id: reportId } });
+    if (!report) {
+      throw new Error(`Report ${reportId} tidak ditemukan`);
+    }
 
-  // Log fresh: hanya activity feed OpenCode.
-  await prisma.report.update({
-    where: { id: reportId },
-    data: { status: "diproses-ai", harnessLog: "" },
-  });
-  await appendActivityLine(
-    reportId,
-    `memulai pemrosesan laporan untuk ${report.siteUrl} ...`,
-  );
-
-  // =========================================================================
-  // HIERARKI 1: Validasi URL terhadap data repositori sistem
-  // =========================================================================
-  await appendActivityLine(
-    reportId,
-    `[Hierarki 1] Memvalidasi URL target pada data sistem...`,
-  );
-  const resolved = await resolveAllowedRepo(report.siteUrl);
-  if (!resolved.ok) {
+    // Log fresh: hanya activity feed OpenCode.
     await prisma.report.update({
       where: { id: reportId },
-      data: { status: "ditolak" },
+      data: { status: "diproses-ai", harnessLog: "" },
     });
     await appendActivityLine(
       reportId,
-      `[Hierarki 1 Ditolak] ${resolved.reason}`,
+      `memulai pemrosesan laporan untuk ${report.siteUrl} ...`,
     );
-    return;
-  }
 
-  const repoUrl = resolved.repoUrl;
-  await prisma.report.update({
-    where: { id: reportId },
-    data: { repoUrl },
-  });
-  await appendActivityLine(
-    reportId,
-    `[Hierarki 1 Lolos] URL terdaftar pada repositori (${repoUrl}). Melanjutkan ke Hierarki 2...`,
-  );
+    // =========================================================================
+    // HIERARKI 1: Validasi URL terhadap data repositori sistem
+    // =========================================================================
+    await appendActivityLine(
+      reportId,
+      `[Hierarki 1] Memvalidasi URL target pada data sistem...`,
+    );
+    const resolved = await resolveAllowedRepo(report.siteUrl);
+    if (!resolved.ok) {
+      await prisma.report.update({
+        where: { id: reportId },
+        data: { status: "ditolak" },
+      });
+      await appendActivityLine(
+        reportId,
+        `[Hierarki 1 Ditolak] ${resolved.reason}`,
+      );
+      return;
+    }
 
-  // =========================================================================
-  // HIERARKI 2: Simulasi & Pemeriksaan AI atas Kebenaran Error
-  // =========================================================================
-  const workRoot = path.join("/tmp", `harness-${reportId}`);
-  await appendActivityLine(
-    reportId,
-    `[Hierarki 2] Menjalankan simulasi browser & pemeriksaan live ke ${report.siteUrl}...`,
-  );
-  const evidence = await runLiveCheck(reportId, report.siteUrl, workRoot);
+    const repoUrl = resolved.repoUrl;
+    await prisma.report.update({
+      where: { id: reportId },
+      data: { repoUrl },
+    });
+    await appendActivityLine(
+      reportId,
+      `[Hierarki 1 Lolos] URL terdaftar pada repositori (${repoUrl}). Melanjutkan ke Hierarki 2...`,
+    );
 
-  await appendActivityLine(
-    reportId,
-    `[Hierarki 2] Agen AI memeriksa apakah error benar adanya...`,
-  );
-  const validation = await validateBugWithAi(report, evidence, workRoot);
+    // =========================================================================
+    // HIERARKI 2: Simulasi & Pemeriksaan AI atas Kebenaran Error
+    // =========================================================================
+    const workRoot = path.join("/tmp", `harness-${reportId}`);
+    await appendActivityLine(
+      reportId,
+      `[Hierarki 2] Menjalankan simulasi browser & pemeriksaan live ke ${report.siteUrl}...`,
+    );
+    // runLiveCheck sudah punya timeout internal; withTimeout di sini sebagai
+    // jaring pengaman agar log tidak stuck beku bila ada hang tak terduga.
+    const evidence = await withTimeout(
+      runLiveCheck(reportId, report.siteUrl, workRoot),
+      LIVE_CHECK_TIMEOUT_MS + 10_000,
+      "Hierarki 2 live check",
+    );
+
+    await appendActivityLine(
+      reportId,
+      `[Hierarki 2] Agen AI memeriksa apakah error benar adanya...`,
+    );
+    const validateTimeout = Math.max(
+      VALIDATE_TIMEOUT_MS,
+      AI_TASK_TIMEOUT_MS + 60_000,
+    );
+    const validation = await withTimeout(
+      validateBugWithAi(report, evidence, workRoot),
+      validateTimeout,
+      "Hierarki 2 validasi AI",
+    );
 
   if (!validation.isValid) {
     await prisma.report.update({
@@ -842,6 +962,34 @@ export async function processViaWrapper(reportId: string): Promise<void> {
 
   await appendActivityLine(reportId, `PR: ${prUrl}`);
   await fs.rm(workRoot, { recursive: true, force: true }).catch(() => {});
+  } catch (err) {
+    const msg = String((err as Error)?.message || err);
+    // Pertahankan perilaku lama untuk report hilang: tetap throw agar CLI exit 1.
+    if (msg.includes("tidak ditemukan")) throw err;
+    // Jaring pengaman terakhir: exception tak terduga (mis. mkdir public/
+    // EROFS, Playwright throw, DB sesaat down) tidak boleh membuat log stuck
+    // di "Menjalankan simulasi..." selamanya. Tandai gagal agar terlihat.
+    console.error(`[processViaWrapper] Unhandled untuk ${reportId}:`, err);
+    try {
+      await prisma.report.update({
+        where: { id: reportId },
+        data: { status: "gagal" },
+      });
+    } catch {
+      // DB tidak terjangkau: tidak ada yang bisa dilakukan selain log server.
+    }
+    try {
+      await appendActivityLine(
+        reportId,
+        `[Gagal diproses] ${String((err as Error)?.message || err).slice(0, 300)}`,
+      );
+    } catch {
+      // Abaikan agar tidak throw berlapis.
+    }
+    await fs
+      .rm(workRootFallback, { recursive: true, force: true })
+      .catch(() => {});
+  }
 }
 
 // CLI runner: `npm run harness -- --reportId=<id>`
