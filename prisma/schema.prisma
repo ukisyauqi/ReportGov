@@ -3,24 +3,24 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// Catatan: Untuk PostgreSQL di production, ubah provider = "postgresql"
-// dan tambahkan @db.Text pada kolom deskripsi, prompt, dan harnessLog.
+// Catatan: SQLite hanya untuk dev lokal (file:./dev.db).
+// Production (Cloud Run + Cloud SQL) memakai postgresql.
 model Report {
   id          String   @id @default(cuid())
   siteUrl     String
   kategori    String   @default("lainnya")
   judul       String   @default("Laporan Kendala Website")
-  deskripsi   String
+  deskripsi   String   @db.Text
   screenshot  String?
   namaPelapor String?
   kontak      String?
   status      String   @default("baru") // baru | diproses-ai | pr-dibuat | selesai | ditolak
-  prompt      String?
-  harnessLog  String?
+  prompt      String?  @db.Text
+  harnessLog  String?  @db.Text
   prUrl       String?
   repoUrl     String?
   sessionId   String?

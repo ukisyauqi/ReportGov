@@ -1,0 +1,23 @@
+# Wrapper OpenCode (Express + @opencode/client) untuk Cloud Run.
+# Auto-start `opencode serve` via Service.ensure() bila OPENCODE_URL kosong.
+FROM node:20-bookworm-slim AS base
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    curl ca-certificates git \
+  && rm -rf /var/lib/apt/lists/*
+
+# OpenCode CLI v2 — PIN ke 2.0.32 agar cocok dengan @opencode/client ^2.0.32
+# (installer opencode.ai/install hanya untuk v1; v2 pakai /v2/install).
+RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.0.32
+ENV PATH="/root/.opencode/bin:${PATH}"
+RUN /root/.opencode/bin/opencode --version
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+# Deps wrapper ada di root (express, cors, @opencode/client, dotenv)
+RUN npm ci --omit=dev
+COPY services ./services
+COPY opencode.json ./
+
+ENV NODE_ENV=production
+CMD ["sh", "-c", "node services/opencode-wrapper/server.js"]

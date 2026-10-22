@@ -1,0 +1,17 @@
+# Copy ke ~/ReportGov/.env di VM lalu isi nilai aslinya.
+DATABASE_URL="file:./dev.db"
+ADMIN_ALLOWED_EMAILS="admin1@gmail.com,admin2@go.id"
+AUTH_SECRET="isi-dengan-openssl-rand-base64-32"
+AUTH_GOOGLE_ID="isi-client-id-google"
+AUTH_GOOGLE_SECRET="isi-client-secret-google"
+WRAPPER_URL="http://localhost:3001"
+PORT=3001
+OPENCODE_URL=""
+OPENCODE_TOKEN=""
+OPENCODE_USERNAME=""
+OPENCODE_PASSWORD=""
+OPENCODE_MODEL=""
+OPENCODE_WAIT_TIMEOUT_MS=120000
+HARNESS_MAX_ITERS=3
+OPENCODE_WORKDIR="/tmp"
+GITHUB_TOKEN="isi-ghp-untuk-pr-otomatis"

@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'deploy/Dockerfile.web'
+      - '-t'
+      - 'asia-southeast2-docker.pkg.dev/hackathon-primestep-12/reportgov/web:latest'
+      - '.'
+images:
+  - 'asia-southeast2-docker.pkg.dev/hackathon-primestep-12/reportgov/web:latest'

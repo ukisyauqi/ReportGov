@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.git/
+.env
+*.db
+*.db-journal
+public/artifacts/
+artifacts/
+/tmp/
+.serena/
+design/
+scratch-test-*.ts
+.next/

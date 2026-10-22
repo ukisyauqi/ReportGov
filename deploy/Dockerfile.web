@@ -1,0 +1,27 @@
+# Web (Next.js + harness + Playwright + gh) untuk Cloud Run.
+FROM node:20-bookworm-slim AS base
+ENV DEBIAN_FRONTEND=noninteractive
+
+# git + gh + curl (harness butuh git clone + gh pr view)
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    git curl ca-certificates gnupg \
+  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+  && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list \
+  && apt-get update -y && apt-get install -y --no-install-recommends gh \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+RUN npm ci
+COPY . .
+# Playwright chromium + OS deps (live check & screenshot)
+RUN npx playwright install --with-deps chromium
+RUN npx prisma generate && npm run build
+
+ENV NODE_ENV=production
+# Cloud Run menyuntik $PORT; Next start pakai -p $PORT via shell
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss 2>/dev/null || npx prisma db push; npm run start -- -p ${PORT:-8080}"]

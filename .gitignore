@@ -9,3 +9,4 @@ out/
 public/artifacts/
 artifacts/
 .serena/
+deploy/.dbpass
