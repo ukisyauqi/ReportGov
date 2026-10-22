@@ -503,38 +503,52 @@ function tryParseJsonObject(output: string): Record<string, unknown> | null {
   }
 }
 
-async function createSession(workdir: string): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), WRAPPER_CALL_TIMEOUT_MS);
-  try {
-    const response = await fetch(`${WRAPPER_URL}/sessions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        directory: workdir,
-        agent: "build",
-        model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
-      }),
-      signal: controller.signal,
-    });
-    const data = (await response.json()) as { id?: string; sessionID?: string };
-    const sid = data?.id || data?.sessionID;
-    if (!response.ok || !sid) {
-      throw new Error(
-        `Gagal membuat session AI: ${JSON.stringify(data).slice(0, 300)}`,
+async function createSession(workdir: string, retries = 3): Promise<string> {
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WRAPPER_CALL_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${WRAPPER_URL}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          directory: workdir,
+          agent: "build",
+          model: parseOpenCodeModel(process.env.OPENCODE_MODEL),
+        }),
+        signal: controller.signal,
+      });
+      const data = (await response.json()) as {
+        id?: string;
+        sessionID?: string;
+      };
+      const sid = data?.id || data?.sessionID;
+      if (!response.ok || !sid) {
+        throw new Error(
+          `Gagal membuat session AI: ${JSON.stringify(data).slice(0, 300)}`,
+        );
+      }
+      return sid;
+    } catch (err) {
+      lastErr = err;
+      const isAbort = (err as Error)?.name === "AbortError";
+      console.warn(
+        `[createSession] attempt ${attempt}/${retries} ke ${WRAPPER_URL} gagal: ${String((err as Error)?.message || err).slice(0, 200)}`,
       );
+      if (attempt < retries) await sleep(attempt * 3000);
+      else if (isAbort) {
+        throw new Error(
+          `Gagal membuat session AI: timeout ${WRAPPER_CALL_TIMEOUT_MS} ms ke wrapper ${WRAPPER_URL} (${retries}x percobaan)`,
+        );
+      }
+    } finally {
+      clearTimeout(timer);
     }
-    return sid;
-  } catch (err) {
-    if ((err as Error)?.name === "AbortError") {
-      throw new Error(
-        `Gagal membuat session AI: timeout ${WRAPPER_CALL_TIMEOUT_MS} ms ke wrapper ${WRAPPER_URL}`,
-      );
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
   }
+  throw new Error(
+    `Gagal membuat session AI: fetch ke ${WRAPPER_URL} gagal (${retries}x percobaan): ${String((lastErr as Error)?.message || lastErr)}`,
+  );
 }
 
 type ActivityItem = { key: string; line: string };
