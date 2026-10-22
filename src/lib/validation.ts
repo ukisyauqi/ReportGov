@@ -70,6 +70,35 @@ export const createReportSchema = z.object({
 
 export type CreateReportInput = z.infer<typeof createReportSchema>;
 
+export const registeredSiteSchema = z.object({
+  siteUrl: z
+    .string()
+    .trim()
+    .min(1, 'Alamat website wajib diisi')
+    .url('Format URL tidak valid. Gunakan http:// atau https://')
+    .refine(
+      (val) => {
+        try {
+          const u = new URL(val);
+          return u.protocol === 'http:' || u.protocol === 'https:';
+        } catch {
+          return false;
+        }
+      },
+      { message: 'URL harus menggunakan protokol http:// atau https://' }
+    ),
+  repoUrl: z
+    .string()
+    .trim()
+    .min(1, 'URL repo wajib diisi')
+    .regex(
+      /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(\.git)?\/?$/i,
+      'Format repo tidak valid. Contoh: https://github.com/org/repo'
+    ),
+  note: z.string().trim().max(500, 'Catatan maksimal 500 karakter').optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
 export function isGoIdUrl(siteUrl: string): boolean {
   try {
     const u = new URL(siteUrl);

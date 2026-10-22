@@ -14,7 +14,7 @@ const AI_TASK_TIMEOUT_MS = Number(
   process.env.AI_TASK_TIMEOUT_MS || 15 * 60 * 1000,
 );
 const ACTIVITY_POLL_MS = 2500;
-const MAX_CONTINUATIONS = 3;
+// Single attempt: 1x runAiTask, tanpa kontinuasi / retry.
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,7 +42,39 @@ async function appendActivityLine(
 export async function resolveAllowedRepo(
   siteUrl: string,
 ): Promise<{ ok: true; repoUrl: string } | { ok: false; reason: string }> {
+  // Sumber kebenaran tunggal: tabel DB `RegisteredSite` (isActive=true).
+  // Fallback baca file config hanya bila DB kosong / tidak terjangkau (deprecated).
   try {
+    try {
+      const rows = await prisma.registeredSite.findMany({
+        where: { isActive: true },
+        select: { siteUrl: true, repoUrl: true },
+      });
+      if (rows.length > 0) {
+        const { matchRepoForSiteUrl } = await import("../src/lib/sites");
+        const matched = matchRepoForSiteUrl(siteUrl, rows);
+        if (matched) return { ok: true, repoUrl: matched };
+        try {
+          const parsed = new URL(siteUrl);
+          return {
+            ok: false,
+            reason: `URL situs (${parsed.origin}) belum terdaftar di database website terdaftar`,
+          };
+        } catch {
+          return {
+            ok: false,
+            reason: `URL situs tidak valid / belum terdaftar di database website terdaftar`,
+          };
+        }
+      }
+      // DB kosong -> lanjut ke fallback file di bawah (migrasi awal).
+    } catch (dbErr) {
+      console.warn(
+        "[resolveAllowedRepo] Gagal baca DB RegisteredSite, fallback ke file config:",
+        dbErr,
+      );
+    }
+
     const mapPath = path.join(process.cwd(), "config", "site-to-repo.json");
     const allowlistPath = path.join(
       process.cwd(),
@@ -91,14 +123,14 @@ export async function resolveAllowedRepo(
     if (!matchedRepo) {
       return {
         ok: false,
-        reason: `URL situs (${origin}) belum terdaftar di config/site-to-repo.json`,
+        reason: `URL situs (${origin}) belum terdaftar di database website terdaftar`,
       };
     }
 
     if (!allowedRepos.has(matchedRepo)) {
       return {
         ok: false,
-        reason: `Repository (${matchedRepo}) tidak termasuk dalam daftar config/allowed-repos.txt`,
+        reason: `Repository (${matchedRepo}) tidak termasuk dalam daftar repo yang diizinkan`,
       };
     }
 
@@ -106,7 +138,7 @@ export async function resolveAllowedRepo(
   } catch (err) {
     return {
       ok: false,
-      reason: `Gagal membaca konfigurasi mapping repo: ${String((err as Error)?.message || err)}`,
+      reason: `Gagal membaca data website terdaftar: ${String((err as Error)?.message || err)}`,
     };
   }
 }
@@ -450,6 +482,12 @@ async function fetchActivity(sessionId: string): Promise<ActivityItem[]> {
   return Array.isArray(data?.activity) ? data.activity : [];
 }
 
+// Dedup global per (report, session): runAiTask dipanggil 1x untuk validasi +
+// 1x fix + hingga MAX_CONTINUATIONSx lanjutan dengan sessionId yang sama.
+// Set `seen` harus bertahan antar panggilan, kalau tidak seluruh history
+// activity akan di-log ulang setiap kontinuasi (kelihatan 3x duplikat).
+const seenBySession = new Map<string, Set<string>>();
+
 // Kirim prompt ke AI, lalu streaming activity feed-nya ke log selama AI bekerja.
 async function runAiTask(
   reportId: string,
@@ -482,7 +520,10 @@ async function runAiTask(
       settled = true;
     });
 
-  const seen = new Set<string>();
+  const seenKey = `${reportId}:${sessionId}`;
+  const existing = seenBySession.get(seenKey);
+  const seen: Set<string> = existing ?? new Set<string>();
+  if (!existing) seenBySession.set(seenKey, seen);
   const drain = async () => {
     try {
       for (const item of await fetchActivity(sessionId)) {
@@ -766,34 +807,10 @@ export async function processViaWrapper(reportId: string): Promise<void> {
     await failReport(reportId, workRoot, `AI berhenti: ${first.error}`);
     return;
   }
-  let prUrl = extractPrUrl(first.reply);
-  for (let n = 1; n <= MAX_CONTINUATIONS && !prUrl; n++) {
-    const cont = await runAiTask(
-      reportId,
-      sessionId,
-      workdir,
-      "Lanjutkan pekerjaan sampai Pull Request terbuat, lalu balas dengan baris `PR_URL: <url>`. " +
-        "Jika ada yang menghalangimu dan tidak bisa kamu atasi sendiri, jelaskan singkat apa penghalangnya lalu berhenti.",
-    );
-    if (cont.error) {
-      await failReport(reportId, workRoot, `AI berhenti: ${cont.error}`);
-      return;
-    }
-    prUrl = extractPrUrl(cont.reply);
-  }
-  if (!prUrl) {
-    await appendActivityLine(
-      reportId,
-      "URL PR tidak ditemukan pada balasan AI, memeriksa daftar PR di repositori...",
-    );
-    prUrl = await findPrByBranch(reportId, workdir);
-    if (prUrl) {
-      await appendActivityLine(
-        reportId,
-        `PR terdeteksi pada repositori: ${prUrl}`,
-      );
-    }
-  }
+  // Sukses = PR benar ada di remote (ground truth), bukan sekadar AI menulis
+  // `PR_URL:` di balasan. Single attempt: tanpa kontinuasi.
+  const prUrl =
+    extractPrUrl(first.reply) || (await findPrByBranch(reportId, workdir));
   if (!prUrl) {
     await failReport(reportId, workRoot, "AI selesai tanpa memberikan URL PR.");
     return;

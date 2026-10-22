@@ -5,6 +5,39 @@ const prisma = new PrismaClient();
 async function main() {
   await prisma.report.deleteMany({});
 
+  // Website terdaftar (sumber kebenaran: DB, dikelola via halaman /admin tab Situs)
+  const defaultSites: Array<{ siteUrl: string; repoUrl: string; note?: string }> = [
+    {
+      siteUrl: 'https://todo-list-buggy-coral.vercel.app',
+      repoUrl: 'https://github.com/ukisyauqi/todo-list-buggy.git',
+      note: 'Migrasi dari config/site-to-repo.json',
+    },
+  ];
+  try {
+    const raw = await import('node:fs/promises').then((fs) =>
+      fs.readFile('config/site-to-repo.json', 'utf-8').catch(() => null)
+    );
+    if (raw) {
+      const map = JSON.parse(raw) as Record<string, string>;
+      for (const [k, v] of Object.entries(map)) {
+        if (!defaultSites.some((s) => s.siteUrl === k)) {
+          defaultSites.push({ siteUrl: k, repoUrl: v, note: 'Migrasi dari config/site-to-repo.json' });
+        }
+      }
+    }
+  } catch {
+    // abaikan, pakai defaultSites
+  }
+  for (const s of defaultSites) {
+    // Normalisasi: simpan repo tanpa sufiks .git / trailing slash
+    const cleanRepo = s.repoUrl.trim().replace(/\/+$/, '').replace(/\.git$/i, '');
+    await prisma.registeredSite.upsert({
+      where: { siteUrl: s.siteUrl },
+      update: { repoUrl: cleanRepo, isActive: true },
+      create: { siteUrl: s.siteUrl, repoUrl: cleanRepo, note: s.note, isActive: true },
+    });
+  }
+
   const report1 = await prisma.report.create({
     data: {
       id: 'seed-kominfo-mobile-nav',
