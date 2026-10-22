@@ -45,8 +45,8 @@ Sistem mengintegrasikan API internal dan eksternal secara terstruktur:
 
 ### A. Internal API Routes (Next.js App Router — Port 3000)
 - `POST /api/reports`:
-  - **Fungsi:** Penerimaan laporan publik dari formulir wizard 4 langkah.
-  - **Proteksi:** Validasi skema Zod dan *Rate Limiter* (maksimal 1 laporan sukses per IP per 24 jam).
+  - **Fungsi:** Penerimaan laporan publik dari formulir wizard multi-langkah.
+  - **Proteksi:** Validasi skema Zod dan *Rate Limiter* (maksimal 3 laporan sukses per IP per 24 jam).
   - **Orkestrasi:** Memicu proses verifikasi dan harness di latar belakang (*background execution*).
 - `GET /api/reports/[id]`:
   - **Fungsi:** Endpoint publik untuk memantau status laporan (*baru*, *diproses-ai*, *pr-dibuat*, *selesai*, *ditolak*) serta live activity feed.
@@ -148,7 +148,7 @@ Selama siklus pengembangan aplikasi, AI coding assistant digunakan secara kolabo
    - *Hierarki 1*: Pengecekan allowlist repositori agar sistem tidak mengeksekusi sembarang URL.
    - *Hierarki 2*: Pemeriksaan mendalam kombinasi live fetch, Playwright screenshot, dan AI reasoning untuk mengeliminasi laporan spam / halusinasi.
 3. **Pembangunan UI Wizard Ramah Pengguna**: Mengembangkan komponen interaktif `src/components/lapor-ui.tsx` yang secara cerdas mengubah kategori pilihan menjadi judul laporan standar, serta memberikan visualisasi rincian field error yang dapat langsung diperbaiki.
-4. **Proteksi & Kebutuhan Non-Fungsional**: Mengembangkan mekanisme *In-Memory IP Rate Limiting* (1 laporan berhasil per IP per 24 jam) untuk mengamankan backend dari lonjakan trafik dan spam bot.
+4. **Proteksi & Kebutuhan Non-Fungsional**: Mengembangkan mekanisme *In-Memory IP Rate Limiting* (maksimal 3 laporan berhasil per IP per 24 jam) untuk mengamankan backend dari lonjakan trafik dan spam bot.
 5. **Refactoring & Debugging**: Mengidentifikasi inkonsistensi skema database Prisma dan mengoreksi penanganan tipe TypeScript.
 
 ### B. AI sebagai Agen Otonom Runtime (Autonomous Agentic System)

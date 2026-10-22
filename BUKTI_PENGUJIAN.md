@@ -14,7 +14,7 @@ Pengujian dilakukan mencakup 5 skenario utama pada alur sistem:
 [Formulir Publik Wizard] 
        │
        ├── Skenario 1: Validasi Input & UI Form (Kategori jadi Judul & Field Error)
-       ├── Skenario 2: Rate Limiting Anti-Spam (1 Laporan / IP / 24 Jam)
+       ├── Skenario 2: Rate Limiting Anti-Spam (Maksimal 3 Laporan / IP / 24 Jam)
        │
 [Orkestrator & Harness]
        │
@@ -42,10 +42,10 @@ Pengujian dilakukan mencakup 5 skenario utama pada alur sistem:
 
 ---
 
-### Skenario 2: Pembatasan Frekuensi (Rate Limiting 1 Laporan / IP / 24 Jam)
-* **Tujuan:** Memastikan satu alamat IP hanya dapat berhasil mengirimkan 1 laporan dalam rentang waktu 24 jam untuk mencegah *denial of service* dan spamming.
+### Skenario 2: Pembatasan Frekuensi (Rate Limiting Maksimal 3 Laporan / IP / 24 Jam)
+* **Tujuan:** Memastikan satu alamat IP hanya dapat berhasil mengirimkan maksimal 3 laporan dalam rentang waktu 24 jam untuk mencegah *denial of service* dan spamming.
 * **Masukan (Input):**
-  - **Percobaan A (Request 1):** Laporan valid dari IP `127.0.0.1` ke endpoint `POST /api/reports`:
+  - **Percobaan 1–3 (Request Laporan Valid 1 s.d. 3):** Tiga laporan valid berurutan dari IP `127.0.0.1` ke endpoint `POST /api/reports`:
     ```json
     {
       "siteUrl": "https://layanan.kominfo.go.id",
@@ -54,18 +54,18 @@ Pengujian dilakukan mencakup 5 skenario utama pada alur sistem:
       "kontak": "warga@uji.id"
     }
     ```
-  - **Percobaan B (Request 2 - Input Tidak Valid):** Percobaan dari IP `127.0.0.1` dengan deskripsi kosong.
-  - **Percobaan C (Request 3 - Laporan Valid Kedua dalam 24 Jam):** Percobaan dari IP `127.0.0.1` dengan data valid baru.
+  - **Percobaan (Input Tidak Valid):** Percobaan dari IP `127.0.0.1` dengan deskripsi kosong.
+  - **Percobaan 4 (Request Laporan Valid ke-4 dalam 24 Jam):** Percobaan laporan valid ke-4 dari IP yang sama.
 * **Hasil Aktual:**
-  1. **Percobaan A:** Mengembalikan HTTP `201 Created` dengan ID laporan baru. Kuota IP tercatat telah digunakan.
-  2. **Percobaan B:** Mengembalikan HTTP `400 Bad Request`. **Kuota IP tidak berkurang** karena kegagalan input tidak dihitung sebagai laporan sukses.
-  3. **Percobaan C:** Mengembalikan HTTP `429 Too Many Requests` dengan respon:
+  1. **Percobaan 1 s.d. 3:** Seluruh 3 laporan valid berhasil diterima dan mengembalikan HTTP `201 Created` dengan ID laporan masing-masing.
+  2. **Percobaan Input Tidak Valid:** Mengembalikan HTTP `400 Bad Request`. **Kuota IP tidak berkurang** karena kegagalan input tidak dihitung sebagai laporan sukses.
+  3. **Percobaan 4 (Setelah Kuota 3 Habis):** Mengembalikan HTTP `429 Too Many Requests` dengan respon:
      ```json
      {
-       "error": "Batas pengiriman tercapai. Anda hanya dapat mengirimkan 1 laporan per hari (24 jam) dari alamat IP ini untuk mencegah lonjakan/spam."
+       "error": "Batas pengiriman laporan tercapai (maksimal 3 laporan per hari per IP). Anda telah mencapai kuota 3 laporan hari ini. Silakan coba lagi dalam 24 jam untuk mencegah lonjakan dan spam."
      }
      ```
-  4. Data laporan kedua ditolak dan tidak disimpan ke database SQLite.
+  4. Laporan ke-4 ditolak sistem dan tidak disimpan ke database SQLite.
 
 ---
 

@@ -7,9 +7,9 @@ import { isAdminEmail } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
-// In-memory rate limiter: Hanya menerima 1 laporan berhasil per IP selama 1 hari (24 jam)
+// In-memory rate limiter: Menerima maksimal 3 laporan berhasil per IP selama 1 hari (24 jam)
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 jam
-const RATE_LIMIT_MAX = 1; // 1 laporan sukses
+const RATE_LIMIT_MAX = 3; // 3 laporan sukses
 const successfulSubmissionsByIp = new Map<string, number[]>();
 
 function checkRateLimit(ip: string): { allowed: boolean; retryAfterHours?: number } {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (!limitCheck.allowed) {
       return NextResponse.json(
         {
-          error: `Batas pengiriman laporan tercapai (maksimal 1 laporan per hari per IP). Anda telah berhasil mengirimkan laporan hari ini. Silakan coba lagi dalam ${limitCheck.retryAfterHours} jam untuk mencegah lonjakan dan spam.`,
+          error: `Batas pengiriman laporan tercapai (maksimal 3 laporan per hari per IP). Anda telah mencapai kuota 3 laporan hari ini. Silakan coba lagi dalam ${limitCheck.retryAfterHours} jam untuk mencegah lonjakan dan spam.`,
         },
         { status: 429 }
       );
