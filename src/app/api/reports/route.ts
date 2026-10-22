@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createReportSchema } from '@/lib/validation';
 import { processViaWrapper } from '@harness/process-via-wrapper';
+import { auth } from '@/auth';
+import { isAdminEmail } from '@/lib/admin-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -149,12 +151,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ reports: recent });
   }
 
-  const adminKeyHeader = req.headers.get('x-admin-key');
-  const expectedAdminKey = process.env.ADMIN_KEY || 'admin-secret-go-id-2026';
+  const session = await auth();
+  const sessionEmail = session?.user?.email || '';
 
-  if (!adminKeyHeader || adminKeyHeader !== expectedAdminKey) {
+  if (!isAdminEmail(sessionEmail)) {
     return NextResponse.json(
-      { error: 'Unauthorized: Header x-admin-key tidak valid' },
+      { error: 'Unauthorized: login dengan akun Google admin yang terdaftar' },
       { status: 401 }
     );
   }

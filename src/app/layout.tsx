@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { LaporLogo } from "@/components/lapor-ui";
+import { NavbarAuth } from "@/components/navbar-auth";
+import { AuthProviders } from "@/components/providers";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -43,13 +46,16 @@ export default function RootLayout({
                 >
                   Buat Laporan
                 </Link>
+                <Suspense fallback={null}>
+                  <NavbarAuth />
+                </Suspense>
               </nav>
             </div>
           </div>
         </header>
 
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          {children}
+          <AuthProviders>{children}</AuthProviders>
         </main>
 
         <footer className="border-t border-line bg-cream py-5">

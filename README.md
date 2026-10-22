@@ -29,6 +29,19 @@ npm run db:push
 npm run db:seed
 ```
 
+### Setup Login Admin (Google OAuth)
+
+1. Buat OAuth Client di [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (tipe Web):
+   - Authorized redirect URI (dev): `http://localhost:3000/api/auth/callback/google`
+2. Isi `.env`:
+   ```sh
+   AUTH_SECRET="$(openssl rand -base64 32)"
+   AUTH_GOOGLE_ID="<client-id>"
+   AUTH_GOOGLE_SECRET="<client-secret>"
+   ADMIN_ALLOWED_EMAILS="admin1@gmail.com,admin2@go.id"
+   ```
+   Hanya email di allowlist yang bisa login ke `/admin`.
+
 ---
 
 ## Menjalankan Sistem
@@ -48,7 +61,7 @@ npm run dev
 
 - **Form Publik**: [http://localhost:3000](http://localhost:3000)
 - **Tracking Laporan**: `http://localhost:3000/lapor/<id>`
-- **Monitoring Admin (Read-Only)**: [http://localhost:3000/admin](http://localhost:3000/admin) (default `x-admin-key`: `admin-secret-go-id-2026`)
+- **Monitoring Admin (Read-Only)**: [http://localhost:3000/admin](http://localhost:3000/admin) (login with Google — email harus terdaftar di `ADMIN_ALLOWED_EMAILS`)
 
 ---
 

@@ -117,6 +117,8 @@ export default function HomePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [registeredSites, setRegisteredSites] = useState<string[]>([]);
+  const [trackId, setTrackId] = useState("");
+  const [mode, setMode] = useState<"form" | "track">("form");
   const siteUrlInvalid = siteUrl.trim().length > 0 && !isValidUrl(siteUrl);
 
   useEffect(() => {
@@ -218,6 +220,72 @@ export default function HomePage() {
     }
   }
 
+  if (mode === "track") {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-3xl border border-line shadow-card overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="p-6 sm:p-10 flex flex-col justify-center min-h-[480px]">
+              <Eyebrow>Lacak Laporan</Eyebrow>
+              <h1 className="text-[28px] sm:text-[32px] leading-[1.15] font-extrabold tracking-tight text-ink mt-1.5">
+                Sudah punya kode laporan?
+              </h1>
+              <p className="text-[13px] text-ink-soft mt-2 max-w-md">
+                Masukkan ID/kode laporan yang pernah dibuat untuk melihat
+                statusnya.
+              </p>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const id = trackId.trim();
+                  if (id) router.push(`/lapor/${id}`);
+                }}
+                className="mt-6"
+              >
+                <label
+                  htmlFor="track-id-input"
+                  className="block text-[11px] font-bold text-ink-soft mb-1.5"
+                >
+                  ID / Kode laporan
+                </label>
+                <input
+                  id="track-id-input"
+                  type="text"
+                  value={trackId}
+                  onChange={(e) => setTrackId(e.target.value)}
+                  placeholder="cth: cm3abc123"
+                  autoFocus
+                  className="w-full rounded-xl border border-line bg-white px-4 py-3 font-mono text-sm text-ink placeholder:text-stone-300 placeholder:font-sans focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/15"
+                />
+                <button
+                  type="submit"
+                  disabled={!trackId.trim()}
+                  className="mt-3 inline-flex items-center gap-2 rounded-full bg-brand-600 hover:bg-brand-700 disabled:bg-stone-300 text-white text-sm font-bold px-6 py-2.5 shadow-pop transition active:scale-[0.98]"
+                >
+                  Lacak Laporan
+                </button>
+              </form>
+
+              <div className="mt-8">
+                <button
+                  type="button"
+                  onClick={() => setMode("form")}
+                  className="text-[12px] font-bold text-brand-700 hover:text-brand-600 hover:underline transition"
+                >
+                  ← Kembali ke form laporan
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 lg:pl-0">
+              <VisualPanel step={1} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Wizard card */}
@@ -225,9 +293,10 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2">
           {/* Left: form side */}
           <div className="p-6 sm:p-10 flex flex-col min-h-[480px]">
-            <StepProgress current={step} total={TOTAL_STEPS} />
+            <>
+              <StepProgress current={step} total={TOTAL_STEPS} />
 
-            <div className="mt-6 flex-1">
+              <div className="mt-6 flex-1">
               {step === 1 && (
                 <>
                   <Eyebrow>Pilih Judul Laporan</Eyebrow>
@@ -820,9 +889,14 @@ export default function HomePage() {
                   Kembali
                 </BackLink>
               ) : (
-                <span className="text-[11px] text-ink-faint hidden sm:block">
-                  Laporan diproses otomatis oleh AI
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setMode("track")}
+                  className="text-[11px] text-ink-faint hover:text-brand-700 hover:underline transition text-left"
+                >
+                  Sudah punya kode laporan?{" "}
+                  <span className="font-bold">Lacak di sini →</span>
+                </button>
               )}
               {step < TOTAL_STEPS ? (
                 <NextButton
@@ -860,6 +934,7 @@ export default function HomePage() {
                 </button>
               )}
             </div>
+            </>
           </div>
 
           {/* Right: visual side */}

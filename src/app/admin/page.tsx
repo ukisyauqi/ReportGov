@@ -1,9 +1,11 @@
-'use client';
+"use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
-import { StatusBadge } from '@/components/StatusBadge';
-import { STATUS_LIST } from '@/lib/validation';
+import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { signIn, signOut } from "next-auth/react";
+import { useClientSession } from "@/components/navbar-auth";
+import { StatusBadge } from "@/components/StatusBadge";
+import { STATUS_LIST } from "@/lib/validation";
 
 interface AdminReport {
   id: string;
@@ -23,13 +25,13 @@ interface AdminReport {
 }
 
 export default function AdminMonitoringPage() {
-  const [adminKey, setAdminKey] = useState('admin-secret-go-id-2026');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { status: sessionStatus } = useClientSession();
+  const [statusFilter, setStatusFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [reports, setReports] = useState<AdminReport[]>([]);
   const [selectedReport, setSelectedReport] = useState<AdminReport | null>(
-    null
+    null,
   );
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -39,19 +41,17 @@ export default function AdminMonitoringPage() {
     setAuthError(null);
     try {
       const params = new URLSearchParams();
-      if (statusFilter) params.set('status', statusFilter);
-      if (searchQuery.trim()) params.set('q', searchQuery.trim());
+      if (statusFilter) params.set("status", statusFilter);
+      if (searchQuery.trim()) params.set("q", searchQuery.trim());
 
+      // Session Auth.js terkirim otomatis via cookie httpOnly.
       const res = await fetch(`/api/reports?${params.toString()}`, {
-        headers: {
-          'x-admin-key': adminKey,
-        },
-        cache: 'no-store',
+        cache: "no-store",
       });
 
       const data = await res.json();
       if (!res.ok) {
-        setAuthError(data.error || 'Gagal memuat data admin');
+        setAuthError(data.error || "Gagal memuat data admin");
         setReports([]);
         setLoading(false);
         return;
@@ -68,11 +68,42 @@ export default function AdminMonitoringPage() {
       setAuthError(String((err as Error)?.message || err));
       setLoading(false);
     }
-  }, [adminKey, statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery]);
 
   useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
+    if (sessionStatus === "authenticated") {
+      fetchReports();
+    }
+  }, [fetchReports, sessionStatus]);
+
+  if (sessionStatus === "loading") {
+    return (
+      <div className="bg-white rounded-3xl border border-line shadow-card p-12 text-center">
+        <div className="w-8 h-8 border-[3px] border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm text-ink-soft">Memeriksa sesi login...</p>
+      </div>
+    );
+  }
+
+  if (sessionStatus === "unauthenticated") {
+    // Middleware normalnya sudah mengarahkan ke /login; fallback ini
+    // hanya untuk kasus sesi kedaluwarsa di client.
+    return (
+      <div className="bg-white rounded-3xl border border-line shadow-card p-12 text-center">
+        <div className="w-8 h-8 border-[3px] border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm text-ink-soft mb-4">
+          Sesi berakhir, mengalihkan ke halaman login...
+        </p>
+        <button
+          type="button"
+          onClick={() => signIn("google", { callbackUrl: "/admin" })}
+          className="text-[13px] font-bold text-brand-700 hover:underline"
+        >
+          Klik di sini jika tidak teralihkan
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -94,22 +125,27 @@ export default function AdminMonitoringPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[11px] font-bold text-ink-soft">
-              x-admin-key:
-            </label>
-            <input
-              type="password"
-              value={adminKey}
-              onChange={(e) => setAdminKey(e.target.value)}
-              placeholder="Masukkan ADMIN_KEY"
-              className="rounded-full border border-line bg-cream/60 px-4 py-2 text-[12px] font-mono focus:border-brand-600 focus:outline-none"
-            />
             <button
               type="button"
               onClick={fetchReports}
-              className="px-4 py-2 rounded-full bg-ink hover:bg-black text-white text-[12px] font-bold transition"
+              title="Muat ulang"
+              aria-label="Muat ulang"
+              className="w-9 h-9 rounded-full border border-line bg-white hover:border-ink text-ink-soft hover:text-ink flex items-center justify-center transition"
             >
-              Muat Ulang
+              <svg
+                viewBox="0 0 24 24"
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                aria-hidden
+              >
+                <path
+                  d="M4 4v5h5M20 20v-5h-5M5 9a8 8 0 0 1 14-3M19 15a8 8 0 0 1-14 3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
           </div>
         </div>
@@ -150,6 +186,13 @@ export default function AdminMonitoringPage() {
       {authError && (
         <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 text-[13px] text-brand-800">
           <strong>Akses ditolak:</strong> {authError}
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className="ml-2 underline font-bold"
+          >
+            Keluar
+          </button>
         </div>
       )}
 
@@ -160,7 +203,9 @@ export default function AdminMonitoringPage() {
             <h2 className="text-sm font-extrabold text-ink">
               Daftar laporan ({reports.length})
             </h2>
-            {loading && <span className="text-[11px] text-ink-faint">Memuat...</span>}
+            {loading && (
+              <span className="text-[11px] text-ink-faint">Memuat...</span>
+            )}
           </div>
 
           {reports.length === 0 ? (
@@ -177,7 +222,9 @@ export default function AdminMonitoringPage() {
                     type="button"
                     onClick={() => setSelectedReport(rep)}
                     className={`w-full text-left p-4 transition hover:bg-cream/70 ${
-                      isSelected ? 'bg-brand-50/60 border-l-[3px] border-l-brand-600' : 'border-l-[3px] border-l-transparent'
+                      isSelected
+                        ? "bg-brand-50/60 border-l-[3px] border-l-brand-600"
+                        : "border-l-[3px] border-l-transparent"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
@@ -187,15 +234,19 @@ export default function AdminMonitoringPage() {
                       <StatusBadge status={rep.status} />
                     </div>
                     <p className="text-[13px] font-bold text-ink line-clamp-1">
-                      {rep.deskripsi.match(/^\[(?:Judul|Kategori):\s*([^\]]+)\]/i)?.[1] || rep.deskripsi}
+                      {rep.deskripsi.match(
+                        /^\[(?:Judul|Kategori):\s*([^\]]+)\]/i,
+                      )?.[1] || rep.deskripsi}
                     </p>
                     <div className="flex items-center justify-between mt-1.5 text-[11px] text-ink-faint">
-                      <span className="truncate max-w-[190px]">{rep.siteUrl}</span>
+                      <span className="truncate max-w-[190px]">
+                        {rep.siteUrl}
+                      </span>
                       <span>
-                        {new Date(rep.createdAt).toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
+                        {new Date(rep.createdAt).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
                         })}
                       </span>
                     </div>
@@ -221,7 +272,9 @@ export default function AdminMonitoringPage() {
                     ID: {selectedReport.id}
                   </span>
                   <h2 className="text-lg font-extrabold tracking-tight text-ink mt-0.5 line-clamp-2">
-                    {selectedReport.deskripsi.match(/^\[(?:Judul|Kategori):\s*([^\]]+)\]/i)?.[1] || selectedReport.deskripsi}
+                    {selectedReport.deskripsi.match(
+                      /^\[(?:Judul|Kategori):\s*([^\]]+)\]/i,
+                    )?.[1] || selectedReport.deskripsi}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -248,15 +301,17 @@ export default function AdminMonitoringPage() {
                   </a>
                 </div>
                 <div className="rounded-2xl bg-cream/70 p-3.5 border border-line/70">
-                  <span className="text-ink-faint block">OpenCode Session ID</span>
+                  <span className="text-ink-faint block">
+                    OpenCode Session ID
+                  </span>
                   <span className="font-mono font-bold text-ink break-all">
-                    {selectedReport.sessionId || '-'}
+                    {selectedReport.sessionId || "-"}
                   </span>
                 </div>
                 <div className="rounded-2xl bg-cream/70 p-3.5 border border-line/70">
                   <span className="text-ink-faint block">Target repo</span>
                   <span className="font-mono text-ink break-all">
-                    {selectedReport.repoUrl || '-'}
+                    {selectedReport.repoUrl || "-"}
                   </span>
                 </div>
                 <div className="rounded-2xl bg-cream/70 p-3.5 border border-line/70">
@@ -290,7 +345,7 @@ export default function AdminMonitoringPage() {
                   Prompt terkirim (read-only)
                 </summary>
                 <pre className="log-scroll mt-3 font-mono text-[11px] bg-ink text-stone-200 rounded-xl p-3 overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
-                  {selectedReport.prompt || '(Belum ada prompt)'}
+                  {selectedReport.prompt || "(Belum ada prompt)"}
                 </pre>
               </details>
 
@@ -299,7 +354,7 @@ export default function AdminMonitoringPage() {
                   Aktivitas OpenCode
                 </h3>
                 <pre className="log-scroll font-mono text-[11px] bg-ink text-emerald-300/90 rounded-2xl p-4 overflow-x-auto max-h-80 overflow-y-auto whitespace-pre-wrap leading-relaxed">
-                  {selectedReport.harnessLog || '(Belum ada log)'}
+                  {selectedReport.harnessLog || "(Belum ada log)"}
                 </pre>
               </div>
             </div>
